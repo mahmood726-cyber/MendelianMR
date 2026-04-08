@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MendelianMR — Browser Mendelian Randomization Analysis</title>
+<meta name="description" content="Mendelian Randomization analysis tool: IVW, MR-Egger, Weighted Median, MR-PRESSO. Offline-first, no server required.">
+<meta property="og:title" content="MendelianMR — Mendelian Randomization Analysis">
+<meta property="og:description" content="Browser-based MR causal inference tool with IVW, MR-Egger, Weighted Median, MR-PRESSO, and comprehensive diagnostics.">
+<style>
+:root {
+  --bg: #0a0e17; --surface: #131926; --surface2: #1a2236;
+  --border: #2a3450; --text: #e2e8f0; --text2: #94a3b8;
+  --accent: #6366f1; --accent2: #818cf8; --green: #22c55e;
+  --red: #ef4444; --amber: #f59e0b; --cyan: #06b6d4;
+  --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+header { text-align: center; padding: 30px 0 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+header h1 { font-size: 2rem; background: linear-gradient(135deg, var(--accent), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+header p { color: var(--text2); margin-top: 6px; font-size: 0.95rem; }
+
+.tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+.tab { padding: 10px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; color: var(--text2); transition: all 0.2s; font-size: 0.9rem; }
+.tab:hover { border-color: var(--accent); color: var(--text); }
+.tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.card h3 { font-size: 1.1rem; margin-bottom: 12px; color: var(--accent2); }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+label { display: block; font-size: 0.85rem; color: var(--text2); margin-bottom: 4px; }
+input, select, textarea { width: 100%; padding: 8px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 0.9rem; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+textarea { font-family: 'Consolas', monospace; resize: vertical; }
+
+.btn { padding: 10px 20px; border: none; border-radius: var(--radius); cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; }
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--accent); }
+.btn-sm { padding: 6px 14px; font-size: 0.82rem; }
+.btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--text2); font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.5px; }
+tr:hover { background: var(--surface2); }
+
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.stat-box { background: var(--surface2); border-radius: var(--radius); padding: 14px; text-align: center; }
+.stat-box .value { font-size: 1.4rem; font-weight: 700; color: var(--accent2); }
+.stat-box .label { font-size: 0.78rem; color: var(--text2); margin-top: 4px; }
+
+.plot-container { background: var(--surface2); border-radius: var(--radius); padding: 16px; margin-top: 12px; }
+canvas { width: 100%; background: transparent; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+
+.info-box { background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; font-size: 0.88rem; color: var(--text2); }
+
+.method-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.method-row:last-child { border-bottom: none; }
+.method-name { font-weight: 600; min-width: 160px; }
+.method-est { font-size: 1.1rem; font-weight: 700; }
+
+footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.82rem; border-top: 1px solid var(--border); margin-top: 30px; }
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+  <h1>MendelianMR</h1>
+  <p>Browser-based Mendelian Randomization analysis — IVW, MR-Egger, Weighted Median, MR-PRESSO</p>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('data')">Data Input</div>
+  <div class="tab" onclick="showTab('results')">Results</div>
+  <div class="tab" onclick="showTab('scatter')">Scatter Plot</div>
+  <div class="tab" onclick="showTab('forest')">Forest Plot</div>
+  <div class="tab" onclick="showTab('funnel')">Funnel Plot</div>
+  <div class="tab" onclick="showTab('loo')">Leave-One-Out</div>
+  <div class="tab" onclick="showTab('guide')">Guide</div>
+</div>
+
+<!-- DATA INPUT -->
+<div class="panel active" id="panel-data">
+  <div class="card">
+    <h3>Load Example Dataset</h3>
+    <div class="btn-group">
+      <button class="btn btn-secondary btn-sm" onclick="loadExample('ldl_chd')">LDL → CHD (28 SNPs)</button>
+      <button class="btn btn-secondary btn-sm" onclick="loadExample('bmi_t2d')">BMI → T2DM (14 SNPs)</button>
+      <button class="btn btn-secondary btn-sm" onclick="loadExample('sbp_stroke')">SBP → Stroke (8 SNPs)</button>
+      <button class="btn btn-secondary btn-sm" onclick="loadExample('crp_chd')">CRP → CHD (5 SNPs, pleiotropy)</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Instrument Data</h3>
+    <div class="info-box">
+      Enter SNP-exposure (β<sub>X</sub>, SE<sub>X</sub>) and SNP-outcome (β<sub>Y</sub>, SE<sub>Y</sub>) associations. One row per genetic variant. Tab/comma-separated: SNP, beta_X, se_X, beta_Y, se_Y
+    </div>
+    <div class="grid-2">
+      <div>
+        <label>Exposure name</label>
+        <input type="text" id="exposureName" value="LDL cholesterol" placeholder="e.g., LDL cholesterol">
+      </div>
+      <div>
+        <label>Outcome name</label>
+        <input type="text" id="outcomeName" value="Coronary heart disease" placeholder="e.g., CHD">
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <label>SNP data (SNP, beta_X, se_X, beta_Y, se_Y)</label>
+      <textarea id="dataInput" rows="14" placeholder="rs123  0.05  0.01  0.03  0.008&#10;rs456  0.08  0.012  0.06  0.011"></textarea>
+    </div>
+    <div class="grid-3" style="margin-top:12px">
+      <div>
+        <label>Effect scale</label>
+        <select id="effectScale">
+          <option value="log">Log-OR (binary outcome)</option>
+          <option value="linear">Linear (continuous)</option>
+          <option value="logRR">Log-RR</option>
+        </select>
+      </div>
+      <div>
+        <label>Significance level (α)</label>
+        <input type="number" id="alpha" value="0.05" step="0.01" min="0.001" max="0.2">
+      </div>
+      <div>
+        <label>MR-PRESSO simulations</label>
+        <input type="number" id="pressoSims" value="1000" step="100" min="100" max="10000">
+      </div>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="runAnalysis()">Run MR Analysis</button>
+      <button class="btn btn-secondary" onclick="clearData()">Clear</button>
+      <button class="btn btn-secondary" onclick="importCSV()">Import CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div class="panel" id="panel-results">
+  <div class="card">
+    <h3>MR Estimates Summary</h3>
+    <div id="summaryStats" class="stat-grid"></div>
+  </div>
+  <div class="card">
+    <h3>Method Comparison</h3>
+    <table id="methodTable">
+      <thead><tr><th>Method</th><th>Estimate</th><th>SE</th><th>95% CI</th><th>P-value</th><th>Interpretation</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Heterogeneity & Pleiotropy Diagnostics</h3>
+    <table id="diagTable">
+      <thead><tr><th>Test</th><th>Statistic</th><th>P-value</th><th>Interpretation</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>MR-PRESSO Results</h3>
+    <div id="pressoResults"></div>
+  </div>
+  <div class="card">
+    <h3>Individual Wald Ratios</h3>
+    <table id="waldTable">
+      <thead><tr><th>SNP</th><th>β<sub>X</sub></th><th>β<sub>Y</sub></th><th>Wald Ratio</th><th>SE</th><th>Weight (IVW)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-secondary btn-sm" onclick="exportCSV()">Export Results CSV</button>
+    <button class="btn btn-secondary btn-sm" onclick="exportReport()">Export Full Report</button>
+  </div>
+</div>
+
+<!-- SCATTER PLOT -->
+<div class="panel" id="panel-scatter">
+  <div class="card">
+    <h3>SNP-Exposure vs SNP-Outcome Scatter Plot</h3>
+    <p style="color:var(--text2);font-size:0.85rem;margin-bottom:8px">Each point is a genetic variant. Lines show causal estimates from different MR methods. Slope = causal effect.</p>
+    <div class="plot-container"><canvas id="scatterCanvas" width="900" height="600"></canvas></div>
+    <div class="btn-group">
+      <button class="btn btn-secondary btn-sm" onclick="exportPlot('scatterCanvas','mr_scatter')">Export SVG</button>
+    </div>
+  </div>
+</div>
+
+<!-- FOREST PLOT -->
+<div class="panel" id="panel-forest">
+  <div class="card">
+    <h3>Forest Plot — Individual Wald Ratios</h3>
+    <div class="plot-container"><canvas id="forestCanvas" width="900" height="700"></canvas></div>
+    <div class="btn-group">
+      <button class="btn btn-secondary btn-sm" onclick="exportPlot('forestCanvas','mr_forest')">Export SVG</button>
+    </div>
+  </div>
+</div>
+
+<!-- FUNNEL PLOT -->
+<div class="panel" id="panel-funnel">
+  <div class="card">
+    <h3>Funnel Plot — Asymmetry Detection</h3>
+    <p style="color:var(--text2);font-size:0.85rem;margin-bottom:8px">Wald ratios vs precision (1/SE). Asymmetry suggests directional pleiotropy.</p>
+    <div class="plot-container"><canvas id="funnelCanvas" width="900" height="600"></canvas></div>
+    <div class="btn-group">
+      <button class="btn btn-secondary btn-sm" onclick="exportPlot('funnelCanvas','mr_funnel')">Export SVG</button>
+    </div>
+  </div>
+</div>
+
+<!-- LEAVE-ONE-OUT -->
+<div class="panel" id="panel-loo">
+  <div class="card">
+    <h3>Leave-One-Out Analysis (IVW)</h3>
+    <p style="color:var(--text2);font-size:0.85rem;margin-bottom:8px">IVW estimate when each SNP is excluded. Identifies influential variants.</p>
+    <div class="plot-container"><canvas id="looCanvas" width="900" height="700"></canvas></div>
+    <table id="looTable" style="margin-top:12px">
+      <thead><tr><th>Excluded SNP</th><th>IVW Estimate</th><th>SE</th><th>95% CI</th><th>P-value</th><th>Change</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- GUIDE -->
+<div class="panel" id="panel-guide">
+  <div class="card">
+    <h3>Mendelian Randomization — Method Guide</h3>
+    <div class="info-box">
+      <strong>What is MR?</strong> Mendelian Randomization uses genetic variants as instrumental variables to estimate causal effects of modifiable exposures on outcomes. Because genotypes are randomly allocated at conception (Mendel's second law), MR mimics a natural randomized trial.
+    </div>
+    <h3 style="margin-top:16px">Methods Implemented</h3>
+    <table>
+      <tr><td><strong>IVW</strong></td><td>Inverse-variance weighted regression through origin. Assumes all instruments are valid (no pleiotropy). The primary estimate.</td></tr>
+      <tr><td><strong>MR-Egger</strong></td><td>Regression with intercept. Intercept ≠ 0 indicates directional pleiotropy. Relies on InSIDE assumption (instrument strength independent of direct effect).</td></tr>
+      <tr><td><strong>Weighted Median</strong></td><td>Consistent when ≥50% of weight comes from valid instruments. Robust to outliers.</td></tr>
+      <tr><td><strong>Simple Median</strong></td><td>Unweighted median of Wald ratios. Consistent when ≥50% of instruments are valid.</td></tr>
+      <tr><td><strong>MR-PRESSO</strong></td><td>Detects and corrects for horizontal pleiotropy outliers. Global test + outlier removal + distortion test.</td></tr>
+    </table>
+    <h3 style="margin-top:16px">Key Assumptions</h3>
+    <table>
+      <tr><td><strong>Relevance</strong></td><td>Genetic variants must be strongly associated with the exposure (F-statistic > 10).</td></tr>
+      <tr><td><strong>Independence</strong></td><td>Variants must not be associated with confounders of the exposure-outcome relationship.</td></tr>
+      <tr><td><strong>Exclusion restriction</strong></td><td>Variants affect the outcome only through the exposure (no horizontal pleiotropy).</td></tr>
+    </table>
+    <h3 style="margin-top:16px">Interpretation Guide</h3>
+    <table>
+      <tr><td><strong>All methods agree</strong></td><td>Strong evidence for causal effect. Report IVW as primary.</td></tr>
+      <tr><td><strong>IVW ≠ MR-Egger</strong></td><td>Possible directional pleiotropy. Check Egger intercept p-value.</td></tr>
+      <tr><td><strong>High Q / I²</strong></td><td>Heterogeneity among Wald ratios. Consider outlier analysis (MR-PRESSO).</td></tr>
+      <tr><td><strong>MR-PRESSO outliers</strong></td><td>Remove outlier SNPs and compare corrected vs. raw estimates (distortion test).</td></tr>
+    </table>
+  </div>
+</div>
+
+<footer>
+  MendelianMR v1.0 — Mahmood Ahmad, Tahir Heart Institute — Offline-first, no data leaves your browser
+</footer>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CORE STATISTICAL FUNCTIONS
+// ═══════════════════════════════════════════════════════
+
+function normalCDF(z) {
+  const a1=0.254829592, a2=-0.284496736, a3=1.421413741, a4=-1.453152027, a5=1.061405429, p=0.3275911;
+  const sign = z < 0 ? -1 : 1;
+  const x = Math.abs(z) / Math.sqrt(2);
+  const t = 1 / (1 + p * x);
+  const y = 1 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t * Math.exp(-x*x);
+  return 0.5 * (1 + sign * y);
+}
+
+function normalQuantile(p) {
+  // Rational approximation (Abramowitz & Stegun 26.2.23)
+  if (p <= 0) return -Infinity;
+  if (p >= 1) return Infinity;
+  if (p === 0.5) return 0;
+  const a = p < 0.5 ? p : 1 - p;
+  const t = Math.sqrt(-2 * Math.log(a));
+  const c0=2.515517, c1=0.802853, c2=0.010328;
+  const d1=1.432788, d2=0.189269, d3=0.001308;
+  let z = t - (c0 + c1*t + c2*t*t) / (1 + d1*t + d2*t*t + d3*t*t*t);
+  if (p < 0.5) z = -z;
+  return z;
+}
+
+function tCDF(t, df) {
+  // Regularized incomplete beta approximation
+  const x = df / (df + t * t);
+  const a = df / 2, b = 0.5;
+  const ibeta = regIncBeta(x, a, b);
+  const p = t >= 0 ? 1 - 0.5 * ibeta : 0.5 * ibeta;
+  return p;
+}
+
+function regIncBeta(x, a, b) {
+  // Continued fraction (Lentz) for regularized incomplete beta
+  if (x < 0 || x > 1) return 0;
+  if (x === 0) return 0;
+  if (x === 1) return 1;
+  const lbeta = lgamma(a) + lgamma(b) - lgamma(a + b);
+  const front = Math.exp(Math.log(x)*a + Math.log(1-x)*b - lbeta) / a;
+  // Use continued fraction
+  let f = 1, c = 1, d = 1 - (a+b)*x/(a+1);
+  if (Math.abs(d) < 1e-30) d = 1e-30;
+  d = 1/d; f = d;
+  for (let i = 1; i <= 200; i++) {
+    const m = i;
+    let numerator = m*(b-m)*x / ((a+2*m-1)*(a+2*m));
+    d = 1 + numerator*d; if (Math.abs(d)<1e-30) d=1e-30; d=1/d;
+    c = 1 + numerator/c; if (Math.abs(c)<1e-30) c=1e-30;
+    f *= d*c;
+    numerator = -(a+m)*(a+b+m)*x / ((a+2*m)*(a+2*m+1));
+    d = 1 + numerator*d; if (Math.abs(d)<1e-30) d=1e-30; d=1/d;
+    c = 1 + numerator/c; if (Math.abs(c)<1e-30) c=1e-30;
+    f *= d*c;
+    if (Math.abs(d*c - 1) < 1e-10) break;
+  }
+  return front * f;
+}
+
+function lgamma(x) {
+  const g = 7;
+  const coef = [0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,
+    -176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - lgamma(1 - x);
+  x -= 1;
+  let a = coef[0];
+  const t = x + g + 0.5;
+  for (let i = 1; i < g + 2; i++) a += coef[i] / (x + i);
+  return 0.5 * Math.log(2 * Math.PI) + (x + 0.5) * Math.log(t) - t + Math.log(a);
+}
+
+function chiSqPValue(x, df) {
+  // P(X > x) for chi-squared
+  if (x <= 0) return 1;
+  return 1 - regGammaP(df/2, x/2);
+}
+
+function regGammaP(a, x) {
+  // Regularized lower incomplete gamma (series)
+  if (x < 0) return 0;
+  if (x === 0) return 0;
+  const lga = lgamma(a);
+  if (x < a + 1) {
+    let sum = 1/a, term = 1/a;
+    for (let n = 1; n < 200; n++) {
+      term *= x / (a + n);
+      sum += term;
+      if (Math.abs(term) < 1e-12 * Math.abs(sum)) break;
+    }
+    return sum * Math.exp(-x + a * Math.log(x) - lga);
+  } else {
+    // Continued fraction
+    let f = 1, b2 = x + 1 - a, c2 = 1/1e-30, d2 = 1/b2;
+    f = d2;
+    for (let i = 1; i <= 200; i++) {
+      const an = -i*(i-a), bn = x + 2*i + 1 - a;
+      d2 = bn + an*d2; if (Math.abs(d2)<1e-30) d2=1e-30; d2=1/d2;
+      c2 = bn + an/c2; if (Math.abs(c2)<1e-30) c2=1e-30;
+      f *= d2*c2;
+      if (Math.abs(d2*c2 - 1) < 1e-10) break;
+    }
+    return 1 - f * Math.exp(-x + a*Math.log(x) - lga);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// MR METHODS
+// ═══════════════════════════════════════════════════════
+
+function parseData() {
+  const raw = document.getElementById('dataInput').value.trim();
+  if (!raw) return null;
+  const lines = raw.split('\n').filter(l => l.trim());
+  const data = [];
+  for (const line of lines) {
+    const parts = line.trim().split(/[\t,\s]+/);
+    if (parts.length < 5) continue;
+    const snp = parts[0];
+    const bx = parseFloat(parts[1]), sex = parseFloat(parts[2]);
+    const by = parseFloat(parts[3]), sey = parseFloat(parts[4]);
+    if (!isFinite(bx) || !isFinite(sex) || !isFinite(by) || !isFinite(sey)) continue;
+    if (sex <= 0 || sey <= 0) continue;
+    data.push({ snp, bx, sex, by, sey });
+  }
+  return data.length >= 3 ? data : null;
+}
+
+// Orient all SNPs so bx > 0 (standard MR convention)
+function orientData(data) {
+  return data.map(d => {
+    if (d.bx < 0) return { ...d, bx: -d.bx, by: -d.by };
+    return { ...d };
+  });
+}
+
+function ivw(data) {
+  // IVW: beta_IVW = sum(w * by/bx) / sum(w), w = bx^2 / sey^2 (second-order)
+  let sumW = 0, sumWR = 0;
+  for (const d of data) {
+    const w = (d.bx * d.bx) / (d.sey * d.sey);
+    sumW += w;
+    sumWR += w * (d.by / d.bx);
+  }
+  const beta = sumWR / sumW;
+  const se = 1 / Math.sqrt(sumW);
+
+  // Cochran's Q
+  let Q = 0;
+  for (const d of data) {
+    const w = (d.bx * d.bx) / (d.sey * d.sey);
+    const r = d.by / d.bx;
+    Q += w * (r - beta) * (r - beta);
+  }
+  const k = data.length;
+  const Qp = chiSqPValue(Q, k - 1);
+  const I2 = Math.max(0, (Q - (k-1)) / Q) * 100;
+
+  // Random-effects (multiplicative): inflate SE by sqrt(Q/df) if Q > df
+  const phi = Q > (k-1) ? Math.sqrt(Q / (k-1)) : 1;
+  const se_re = se * phi;
+
+  const z = beta / se;
+  const p = 2 * (1 - normalCDF(Math.abs(z)));
+  const z_re = beta / se_re;
+  const p_re = 2 * (1 - normalCDF(Math.abs(z_re)));
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha/2);
+
+  return {
+    method: 'IVW (fixed-effect)',
+    beta, se, ci: [beta - zc*se, beta + zc*se], p, z,
+    beta_re: beta, se_re, ci_re: [beta - zc*se_re, beta + zc*se_re], p_re,
+    Q, Qp, I2, k
+  };
+}
+
+function mrEgger(data) {
+  // Weighted regression: by = beta0 + beta1*bx, weights = 1/sey^2
+  const k = data.length;
+  let sw=0, swx=0, swy=0, swxx=0, swxy=0;
+  for (const d of data) {
+    const w = 1 / (d.sey * d.sey);
+    sw += w; swx += w*d.bx; swy += w*d.by;
+    swxx += w*d.bx*d.bx; swxy += w*d.bx*d.by;
+  }
+  const xbar = swx/sw, ybar = swy/sw;
+  const Sxx = swxx - sw*xbar*xbar;
+  const Sxy = swxy - sw*xbar*ybar;
+  const beta1 = Sxy / Sxx;
+  const beta0 = ybar - beta1*xbar;
+
+  // Residual variance
+  let ssr = 0;
+  for (const d of data) {
+    const w = 1 / (d.sey * d.sey);
+    const res = d.by - beta0 - beta1*d.bx;
+    ssr += w * res * res;
+  }
+  const sigma2 = ssr / (k - 2);
+  const se_beta1 = Math.sqrt(sigma2 / Sxx);
+  const se_beta0 = Math.sqrt(sigma2 * (1/sw + xbar*xbar/Sxx));
+
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha/2);
+
+  // P-values (use t-distribution with k-2 df)
+  const t1 = beta1 / se_beta1;
+  const p1 = 2 * (1 - tCDF(Math.abs(t1), k-2));
+  const t0 = beta0 / se_beta0;
+  const p0 = 2 * (1 - tCDF(Math.abs(t0), k-2));
+
+  // I² for Egger (Q around Egger line)
+  let Q_egger = 0;
+  for (const d of data) {
+    const w = 1 / (d.sey * d.sey);
+    const fitted = beta0 + beta1*d.bx;
+    Q_egger += w * (d.by - fitted) * (d.by - fitted);
+  }
+  const I2_egger = Math.max(0, (Q_egger - (k-2)) / Q_egger) * 100;
+
+  return {
+    method: 'MR-Egger',
+    beta: beta1, se: se_beta1,
+    ci: [beta1 - zc*se_beta1, beta1 + zc*se_beta1],
+    p: p1,
+    intercept: beta0, intercept_se: se_beta0,
+    intercept_ci: [beta0 - zc*se_beta0, beta0 + zc*se_beta0],
+    intercept_p: p0,
+    Q: Q_egger, I2: I2_egger, k
+  };
+}
+
+function weightedMedian(data) {
+  // Wald ratios and their weights
+  const ratios = data.map(d => ({
+    ratio: d.by / d.bx,
+    weight: (d.bx * d.bx) / (d.sey * d.sey)
+  }));
+  // Sort by ratio
+  ratios.sort((a,b) => a.ratio - b.ratio);
+  const totalW = ratios.reduce((s,r) => s + r.weight, 0);
+  // Find weighted median
+  let cumW = 0;
+  let beta = ratios[0].ratio;
+  for (const r of ratios) {
+    cumW += r.weight;
+    if (cumW >= totalW / 2) { beta = r.ratio; break; }
+  }
+
+  // Bootstrap SE (1000 reps, seeded)
+  const rng = xoshiro128ss(42);
+  const nBoot = 1000;
+  const bootBetas = [];
+  for (let b = 0; b < nBoot; b++) {
+    const bootData = [];
+    for (const d of data) {
+      bootData.push({
+        bx: d.bx + d.sex * rng.normal(),
+        by: d.by + d.sey * rng.normal(),
+        sex: d.sex, sey: d.sey
+      });
+    }
+    const br = bootData.map(d => ({ ratio: d.by/d.bx, weight: (d.bx*d.bx)/(d.sey*d.sey) }));
+    br.sort((a,b2) => a.ratio - b2.ratio);
+    const tw = br.reduce((s,r) => s + r.weight, 0);
+    let cw = 0, bm = br[0].ratio;
+    for (const r of br) { cw += r.weight; if (cw >= tw/2) { bm = r.ratio; break; } }
+    bootBetas.push(bm);
+  }
+  const se = Math.sqrt(bootBetas.reduce((s,b2) => s + (b2-beta)*(b2-beta), 0) / (nBoot-1));
+
+  const z = beta / se;
+  const p = 2 * (1 - normalCDF(Math.abs(z)));
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha/2);
+
+  return { method: 'Weighted Median', beta, se, ci: [beta - zc*se, beta + zc*se], p, k: data.length };
+}
+
+function simpleMedian(data) {
+  const ratios = data.map(d => d.by / d.bx).sort((a,b) => a - b);
+  const n = ratios.length;
+  const beta = n % 2 === 1 ? ratios[Math.floor(n/2)] : (ratios[n/2-1] + ratios[n/2]) / 2;
+
+  // Bootstrap SE
+  const rng = xoshiro128ss(123);
+  const nBoot = 1000;
+  const bootBetas = [];
+  for (let b = 0; b < nBoot; b++) {
+    const bootRatios = [];
+    for (const d of data) {
+      const bx2 = d.bx + d.sex * rng.normal();
+      const by2 = d.by + d.sey * rng.normal();
+      bootRatios.push(by2 / bx2);
+    }
+    bootRatios.sort((a,b2) => a - b2);
+    const m = bootRatios.length;
+    bootBetas.push(m % 2 === 1 ? bootRatios[Math.floor(m/2)] : (bootRatios[m/2-1]+bootRatios[m/2])/2);
+  }
+  const se = Math.sqrt(bootBetas.reduce((s,b2) => s + (b2-beta)*(b2-beta), 0) / (nBoot-1));
+
+  const z = beta / se;
+  const p = 2 * (1 - normalCDF(Math.abs(z)));
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha/2);
+
+  return { method: 'Simple Median', beta, se, ci: [beta - zc*se, beta + zc*se], p, k: data.length };
+}
+
+function mrPresso(data) {
+  const k = data.length;
+  const nSim = parseInt(document.getElementById('pressoSims').value) || 1000;
+  const rng = xoshiro128ss(7);
+
+  // Observed IVW residuals
+  const ivwRes = ivw(data);
+  const beta0 = ivwRes.beta;
+  let rssObs = 0;
+  for (const d of data) {
+    const w = (d.bx * d.bx) / (d.sey * d.sey);
+    const res = d.by / d.bx - beta0;
+    rssObs += w * res * res;
+  }
+
+  // Global test: simulate under null (no pleiotropy)
+  let globalCount = 0;
+  for (let s = 0; s < nSim; s++) {
+    const simData = data.map(d => ({
+      bx: d.bx + d.sex * rng.normal(),
+      by: (beta0 * d.bx) + d.sey * rng.normal(),
+      sex: d.sex, sey: d.sey, snp: d.snp
+    }));
+    const simIVW = ivw(simData);
+    let rssSim = 0;
+    for (const d of simData) {
+      const w = (d.bx*d.bx) / (d.sey*d.sey);
+      rssSim += w * (d.by/d.bx - simIVW.beta) * (d.by/d.bx - simIVW.beta);
+    }
+    if (rssSim >= rssObs) globalCount++;
+  }
+  const globalP = (globalCount + 1) / (nSim + 1);
+
+  // Outlier detection: leave-one-out, compare individual contributions
+  const outliers = [];
+  if (globalP < 0.05) {
+    for (let i = 0; i < k; i++) {
+      const subData = data.filter((_, j) => j !== i);
+      const subIVW = ivw(subData);
+      const d = data[i];
+      const w = (d.bx*d.bx) / (d.sey*d.sey);
+      const resid = w * (d.by/d.bx - subIVW.beta) * (d.by/d.bx - subIVW.beta);
+
+      // Simulate null distribution for this residual
+      let cnt = 0;
+      for (let s = 0; s < Math.min(nSim, 500); s++) {
+        const simD = {
+          bx: d.bx + d.sex * rng.normal(),
+          by: subIVW.beta * d.bx + d.sey * rng.normal(),
+          sex: d.sex, sey: d.sey
+        };
+        const w2 = (simD.bx*simD.bx)/(simD.sey*simD.sey);
+        const r2 = w2 * (simD.by/simD.bx - subIVW.beta) * (simD.by/simD.bx - subIVW.beta);
+        if (r2 >= resid) cnt++;
+      }
+      const pAdj = (cnt + 1) / (Math.min(nSim,500) + 1);
+      // Bonferroni correction
+      if (pAdj * k < 0.05) {
+        outliers.push({ snp: d.snp, index: i, p: pAdj * k });
+      }
+    }
+  }
+
+  // Corrected estimate (excluding outliers)
+  let corrected = null, distortionP = null;
+  if (outliers.length > 0) {
+    const outlierIdx = new Set(outliers.map(o => o.index));
+    const cleanData = data.filter((_, i) => !outlierIdx.has(i));
+    if (cleanData.length >= 3) {
+      corrected = ivw(cleanData);
+      // Distortion test: is the corrected significantly different from raw?
+      const diff = Math.abs(corrected.beta - ivwRes.beta);
+      const seDiff = Math.sqrt(corrected.se*corrected.se + ivwRes.se*ivwRes.se);
+      distortionP = 2 * (1 - normalCDF(diff / seDiff));
+    }
+  }
+
+  return {
+    method: 'MR-PRESSO',
+    globalRSS: rssObs, globalP,
+    outliers, corrected, distortionP,
+    raw: ivwRes
+  };
+}
+
+function leaveOneOut(data) {
+  const results = [];
+  const fullIVW = ivw(data);
+  for (let i = 0; i < data.length; i++) {
+    const subData = data.filter((_, j) => j !== i);
+    const res = ivw(subData);
+    results.push({
+      excluded: data[i].snp,
+      beta: res.beta, se: res.se,
+      ci: res.ci, p: res.p,
+      change: res.beta - fullIVW.beta
+    });
+  }
+  return results;
+}
+
+function fStatistic(data) {
+  // Mean F-statistic across SNPs: F_j = (bx_j / sex_j)^2
+  const fVals = data.map(d => (d.bx / d.sex) * (d.bx / d.sex));
+  const meanF = fVals.reduce((s,f) => s+f, 0) / fVals.length;
+  const minF = Math.min(...fVals);
+  return { mean: meanF, min: minF, values: fVals };
+}
+
+// ═══════════════════════════════════════════════════════
+// SEEDED PRNG (xoshiro128**)
+// ═══════════════════════════════════════════════════════
+
+function xoshiro128ss(seed) {
+  let s = [seed, seed ^ 0xDEADBEEF, seed ^ 0x12345678, seed ^ 0x87654321];
+  function next() {
+    const r = Math.imul(s[1] * 5, 0) >>> 0;
+    const result = (((r << 7) | (r >>> 25)) * 9) >>> 0;
+    const t = s[1] << 9;
+    s[2] ^= s[0]; s[3] ^= s[1]; s[1] ^= s[2]; s[0] ^= s[3];
+    s[2] ^= t; s[3] = ((s[3] << 11) | (s[3] >>> 21)) >>> 0;
+    return result;
+  }
+  function random() { return (next() >>> 0) / 4294967296; }
+  function normal() {
+    // Box-Muller
+    let u, v, s2;
+    do { u = 2*random()-1; v = 2*random()-1; s2 = u*u+v*v; } while (s2 >= 1 || s2 === 0);
+    return u * Math.sqrt(-2 * Math.log(s2) / s2);
+  }
+  return { random, normal, next };
+}
+
+// ═══════════════════════════════════════════════════════
+// ANALYSIS RUNNER
+// ═══════════════════════════════════════════════════════
+
+let lastResults = null;
+let lastData = null;
+
+function runAnalysis() {
+  const raw = parseData();
+  if (!raw) { alert('Need at least 3 valid SNPs (SNP, beta_X, se_X, beta_Y, se_Y).'); return; }
+
+  const data = orientData(raw);
+  lastData = data;
+
+  const ivwRes = ivw(data);
+  const eggerRes = mrEgger(data);
+  const wmedRes = weightedMedian(data);
+  const smedRes = simpleMedian(data);
+  const pressoRes = mrPresso(data);
+  const looRes = leaveOneOut(data);
+  const fStats = fStatistic(data);
+
+  lastResults = { ivw: ivwRes, egger: eggerRes, wmed: wmedRes, smed: smedRes, presso: pressoRes, loo: looRes, fStats, data };
+
+  renderResults();
+  renderScatter();
+  renderForest();
+  renderFunnel();
+  renderLOO();
+  showTab('results');
+}
+
+// ═══════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════
+
+function renderResults() {
+  const r = lastResults;
+  const scale = document.getElementById('effectScale').value;
+  const isLog = scale === 'log' || scale === 'logRR';
+
+  // Summary stats
+  const statsDiv = document.getElementById('summaryStats');
+  const fLabel = r.fStats.mean < 10 ? '<span class="badge badge-red">WEAK</span>' : '<span class="badge badge-green">STRONG</span>';
+  statsDiv.innerHTML = `
+    <div class="stat-box"><div class="value">${r.data.length}</div><div class="label">SNP Instruments</div></div>
+    <div class="stat-box"><div class="value">${r.fStats.mean.toFixed(1)}</div><div class="label">Mean F-statistic ${fLabel}</div></div>
+    <div class="stat-box"><div class="value">${r.ivw.I2.toFixed(1)}%</div><div class="label">I² Heterogeneity</div></div>
+    <div class="stat-box"><div class="value">${formatEst(r.ivw.beta, isLog)}</div><div class="label">IVW Estimate${isLog ? ' (OR)' : ''}</div></div>
+    <div class="stat-box"><div class="value">${r.ivw.p < 0.001 ? r.ivw.p.toExponential(2) : r.ivw.p.toFixed(4)}</div><div class="label">IVW P-value</div></div>
+    <div class="stat-box"><div class="value">${r.egger.intercept_p.toFixed(4)}</div><div class="label">Egger Intercept P</div></div>
+  `;
+
+  // Method table
+  const methods = [
+    { ...r.ivw, method: 'IVW (fixed)' },
+    { method: 'IVW (random)', beta: r.ivw.beta, se: r.ivw.se_re, ci: r.ivw.ci_re, p: r.ivw.p_re },
+    r.egger, r.wmed, r.smed
+  ];
+  if (r.presso.corrected) {
+    methods.push({ method: 'MR-PRESSO (corrected)', beta: r.presso.corrected.beta, se: r.presso.corrected.se, ci: r.presso.corrected.ci, p: r.presso.corrected.p });
+  }
+
+  const tbody = document.querySelector('#methodTable tbody');
+  tbody.innerHTML = methods.map(m => {
+    const sig = m.p < 0.05;
+    return `<tr>
+      <td><strong>${m.method}</strong></td>
+      <td>${formatEst(m.beta, isLog)}</td>
+      <td>${m.se.toFixed(4)}</td>
+      <td>${formatEst(m.ci[0], isLog)} to ${formatEst(m.ci[1], isLog)}</td>
+      <td>${m.p < 0.001 ? m.p.toExponential(2) : m.p.toFixed(4)}</td>
+      <td>${sig ? '<span class="badge badge-green">Significant</span>' : '<span class="badge badge-amber">Not significant</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  // Diagnostics table
+  const diags = [
+    { test: 'Cochran Q (IVW)', stat: `Q=${r.ivw.Q.toFixed(2)}, df=${r.ivw.k-1}`, p: r.ivw.Qp, interp: r.ivw.Qp < 0.05 ? 'Significant heterogeneity' : 'No significant heterogeneity' },
+    { test: 'I² (IVW)', stat: `${r.ivw.I2.toFixed(1)}%`, p: '-', interp: r.ivw.I2 > 75 ? 'High' : r.ivw.I2 > 50 ? 'Moderate' : r.ivw.I2 > 25 ? 'Low' : 'Negligible' },
+    { test: 'MR-Egger intercept', stat: `${r.egger.intercept.toFixed(5)} (${r.egger.intercept_ci[0].toFixed(5)}, ${r.egger.intercept_ci[1].toFixed(5)})`, p: r.egger.intercept_p.toFixed(4), interp: r.egger.intercept_p < 0.05 ? 'Directional pleiotropy detected' : 'No evidence of directional pleiotropy' },
+    { test: 'MR-PRESSO global', stat: `RSS=${r.presso.globalRSS.toFixed(2)}`, p: r.presso.globalP.toFixed(4), interp: r.presso.globalP < 0.05 ? `Pleiotropy detected (${r.presso.outliers.length} outlier${r.presso.outliers.length !== 1 ? 's' : ''})` : 'No significant pleiotropy' },
+    { test: 'Mean F-statistic', stat: r.fStats.mean.toFixed(1), p: '-', interp: r.fStats.mean < 10 ? 'WEAK instruments — results unreliable' : 'Adequate instrument strength' },
+    { test: 'Min F-statistic', stat: r.fStats.min.toFixed(1), p: '-', interp: r.fStats.min < 10 ? 'Some weak instruments present' : 'All instruments adequate' }
+  ];
+  document.querySelector('#diagTable tbody').innerHTML = diags.map(d => {
+    const cls = typeof d.p === 'number' ? (d.p < 0.05 ? 'badge-red' : 'badge-green') : '';
+    return `<tr><td><strong>${d.test}</strong></td><td>${d.stat}</td><td>${typeof d.p === 'number' ? (d.p < 0.001 ? d.p.toExponential(2) : d.p.toFixed(4)) : d.p}</td><td>${cls ? `<span class="badge ${cls}">${d.interp}</span>` : d.interp}</td></tr>`;
+  }).join('');
+
+  // MR-PRESSO details
+  const pressoDiv = document.getElementById('pressoResults');
+  if (r.presso.globalP >= 0.05) {
+    pressoDiv.innerHTML = '<p style="color:var(--green)">Global test not significant (P=' + r.presso.globalP.toFixed(3) + '). No outlier analysis needed.</p>';
+  } else {
+    let html = `<p style="color:var(--red)">Global test significant (P=${r.presso.globalP.toFixed(3)}). Horizontal pleiotropy detected.</p>`;
+    if (r.presso.outliers.length > 0) {
+      html += '<p><strong>Outlier SNPs (Bonferroni-corrected):</strong></p><ul>';
+      r.presso.outliers.forEach(o => { html += `<li>${o.snp} (adjusted P=${o.p.toFixed(4)})</li>`; });
+      html += '</ul>';
+      if (r.presso.corrected) {
+        html += `<p><strong>Corrected IVW:</strong> ${formatEst(r.presso.corrected.beta, isLog)} (${formatEst(r.presso.corrected.ci[0], isLog)} to ${formatEst(r.presso.corrected.ci[1], isLog)}), P=${r.presso.corrected.p < 0.001 ? r.presso.corrected.p.toExponential(2) : r.presso.corrected.p.toFixed(4)}</p>`;
+        html += `<p><strong>Distortion test:</strong> P=${r.presso.distortionP.toFixed(4)} ${r.presso.distortionP < 0.05 ? '<span class="badge badge-red">Significant distortion</span>' : '<span class="badge badge-green">No significant distortion</span>'}</p>`;
+      }
+    } else {
+      html += '<p>No individual outliers identified after Bonferroni correction.</p>';
+    }
+    pressoDiv.innerHTML = html;
+  }
+
+  // Wald ratios table
+  const isLogScale = isLog;
+  document.querySelector('#waldTable tbody').innerHTML = lastData.map(d => {
+    const ratio = d.by / d.bx;
+    const se = Math.abs(d.sey / d.bx);
+    const w = (d.bx*d.bx)/(d.sey*d.sey);
+    const totalW = lastData.reduce((s,dd) => s + (dd.bx*dd.bx)/(dd.sey*dd.sey), 0);
+    return `<tr><td>${d.snp}</td><td>${d.bx.toFixed(4)}</td><td>${d.by.toFixed(4)}</td><td>${formatEst(ratio, isLogScale)}</td><td>${se.toFixed(4)}</td><td>${(w/totalW*100).toFixed(1)}%</td></tr>`;
+  }).join('');
+}
+
+function formatEst(val, isLog) {
+  if (isLog) return Math.exp(val).toFixed(3);
+  return val.toFixed(4);
+}
+
+// ═══════════════════════════════════════════════════════
+// PLOTTING
+// ═══════════════════════════════════════════════════════
+
+function renderScatter() {
+  const canvas = document.getElementById('scatterCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const data = lastResults.data;
+  const r = lastResults;
+  const pad = { top: 40, right: 40, bottom: 60, left: 70 };
+  const pw = W - pad.left - pad.right, ph = H - pad.top - pad.bottom;
+
+  // Ranges
+  const bxMax = Math.max(...data.map(d => d.bx + d.sex)) * 1.1;
+  const byAll = data.flatMap(d => [d.by + d.sey, d.by - d.sey]);
+  const byMin = Math.min(...byAll, 0) * 1.1;
+  const byMax = Math.max(...byAll) * 1.1;
+
+  const xScale = v => pad.left + (v / bxMax) * pw;
+  const yScale = v => pad.top + ph - ((v - byMin) / (byMax - byMin)) * ph;
+
+  // Grid
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + (ph/5)*i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W-pad.right, y); ctx.stroke();
+    const v = byMax - (byMax-byMin)*(i/5);
+    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(v.toFixed(3), pad.left-8, y+4);
+  }
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.left + (pw/5)*i;
+    ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, H-pad.bottom); ctx.stroke();
+    const v = (bxMax/5)*i;
+    ctx.fillStyle = '#64748b'; ctx.textAlign = 'center';
+    ctx.fillText(v.toFixed(3), x, H-pad.bottom+18);
+  }
+
+  // Zero line
+  if (byMin < 0 && byMax > 0) {
+    ctx.strokeStyle = '#475569'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(pad.left, yScale(0)); ctx.lineTo(W-pad.right, yScale(0)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Method lines
+  const methods = [
+    { beta: r.ivw.beta, intercept: 0, color: '#6366f1', label: 'IVW', dash: [] },
+    { beta: r.egger.beta, intercept: r.egger.intercept, color: '#06b6d4', label: 'MR-Egger', dash: [6,3] },
+    { beta: r.wmed.beta, intercept: 0, color: '#22c55e', label: 'W. Median', dash: [3,3] },
+    { beta: r.smed.beta, intercept: 0, color: '#f59e0b', label: 'S. Median', dash: [8,4,2,4] }
+  ];
+  for (const m of methods) {
+    ctx.strokeStyle = m.color; ctx.lineWidth = 2; ctx.setLineDash(m.dash);
+    ctx.beginPath();
+    ctx.moveTo(xScale(0), yScale(m.intercept));
+    ctx.lineTo(xScale(bxMax), yScale(m.intercept + m.beta * bxMax));
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Data points with error bars
+  const outlierSNPs = new Set((r.presso.outliers || []).map(o => o.snp));
+  for (const d of data) {
+    const x = xScale(d.bx), y = yScale(d.by);
+    const isOutlier = outlierSNPs.has(d.snp);
+
+    // Error bars
+    ctx.strokeStyle = isOutlier ? '#ef4444' : 'rgba(148,163,184,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, yScale(d.by-d.sey)); ctx.lineTo(x, yScale(d.by+d.sey)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(xScale(d.bx-d.sex), y); ctx.lineTo(xScale(d.bx+d.sex), y); ctx.stroke();
+
+    // Point
+    ctx.beginPath(); ctx.arc(x, y, isOutlier ? 6 : 5, 0, Math.PI*2);
+    ctx.fillStyle = isOutlier ? '#ef4444' : '#e2e8f0';
+    ctx.fill();
+    ctx.strokeStyle = isOutlier ? '#dc2626' : '#94a3b8'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+
+  // Legend
+  let ly = pad.top + 10;
+  for (const m of methods) {
+    ctx.fillStyle = m.color; ctx.font = 'bold 11px sans-serif';
+    ctx.fillRect(W - pad.right - 120, ly, 20, 3);
+    ctx.textAlign = 'left';
+    ctx.fillText(m.label, W - pad.right - 95, ly + 5);
+    ly += 18;
+  }
+
+  // Axis labels
+  ctx.fillStyle = '#94a3b8'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(`SNP–${document.getElementById('exposureName').value} association (β_X)`, pad.left + pw/2, H - 10);
+  ctx.save(); ctx.translate(16, pad.top + ph/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText(`SNP–${document.getElementById('outcomeName').value} association (β_Y)`, 0, 0);
+  ctx.restore();
+}
+
+function renderForest() {
+  const canvas = document.getElementById('forestCanvas');
+  const ctx = canvas.getContext('2d');
+  const data = lastResults.data;
+  const r = lastResults;
+  const scale = document.getElementById('effectScale').value;
+  const isLog = scale === 'log' || scale === 'logRR';
+
+  const rows = data.length + 4; // +4 for summary methods
+  canvas.height = Math.max(400, rows * 28 + 80);
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { top: 40, right: 40, bottom: 40, left: 180 };
+  const pw = W - pad.left - pad.right;
+
+  // Compute Wald ratios
+  const waldRatios = data.map(d => ({
+    snp: d.snp, est: d.by/d.bx, se: Math.abs(d.sey/d.bx)
+  }));
+  const allEst = [...waldRatios.map(w => [w.est - 1.96*w.se, w.est + 1.96*w.se]).flat(),
+    r.ivw.ci[0], r.ivw.ci[1], r.egger.ci[0], r.egger.ci[1], r.wmed.ci[0], r.wmed.ci[1]];
+  const eMin = Math.min(...allEst) * 1.1;
+  const eMax = Math.max(...allEst) * 1.1;
+  const xScale = v => pad.left + ((v - eMin) / (eMax - eMin)) * pw;
+  const nullVal = 0;
+  const rowH = 24;
+
+  // Null line
+  ctx.strokeStyle = '#475569'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(xScale(nullVal), pad.top); ctx.lineTo(xScale(nullVal), H - pad.bottom); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Header
+  ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('SNP', 10, pad.top - 10);
+  ctx.textAlign = 'center';
+  ctx.fillText(isLog ? 'OR (95% CI)' : 'Estimate (95% CI)', pad.left + pw/2, pad.top - 10);
+
+  // Individual Wald ratios
+  const outlierSNPs = new Set((r.presso.outliers || []).map(o => o.snp));
+  waldRatios.forEach((w, i) => {
+    const y = pad.top + 10 + i * rowH;
+    const lo = w.est - 1.96 * w.se, hi = w.est + 1.96 * w.se;
+    const isOut = outlierSNPs.has(w.snp);
+    const color = isOut ? '#ef4444' : '#818cf8';
+
+    // CI line
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(xScale(lo), y); ctx.lineTo(xScale(hi), y); ctx.stroke();
+
+    // Point
+    ctx.beginPath(); ctx.arc(xScale(w.est), y, 4, 0, Math.PI*2);
+    ctx.fillStyle = color; ctx.fill();
+
+    // Label
+    ctx.fillStyle = isOut ? '#ef4444' : '#e2e8f0'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(w.snp, pad.left - 8, y + 4);
+
+    // Value on right
+    ctx.textAlign = 'left'; ctx.fillStyle = '#94a3b8'; ctx.font = '10px monospace';
+    ctx.fillText(`${formatEst(w.est, isLog)} [${formatEst(lo, isLog)}, ${formatEst(hi, isLog)}]`, xScale(eMax) + 5, y + 4);
+  });
+
+  // Divider
+  const divY = pad.top + 10 + data.length * rowH + 6;
+  ctx.strokeStyle = '#475569'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(10, divY); ctx.lineTo(W - 10, divY); ctx.stroke();
+
+  // Summary methods
+  const summaries = [
+    { label: 'IVW', est: r.ivw.beta, ci: r.ivw.ci, color: '#6366f1' },
+    { label: 'MR-Egger', est: r.egger.beta, ci: r.egger.ci, color: '#06b6d4' },
+    { label: 'W. Median', est: r.wmed.beta, ci: r.wmed.ci, color: '#22c55e' },
+    { label: 'S. Median', est: r.smed.beta, ci: r.smed.ci, color: '#f59e0b' }
+  ];
+  summaries.forEach((s, i) => {
+    const y = divY + 20 + i * rowH;
+
+    // Diamond
+    const cx = xScale(s.est), lx = xScale(s.ci[0]), rx = xScale(s.ci[1]);
+    ctx.beginPath();
+    ctx.moveTo(lx, y); ctx.lineTo(cx, y-6); ctx.lineTo(rx, y); ctx.lineTo(cx, y+6); ctx.closePath();
+    ctx.fillStyle = s.color; ctx.globalAlpha = 0.7; ctx.fill(); ctx.globalAlpha = 1;
+
+    ctx.fillStyle = s.color; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(s.label, pad.left - 8, y + 4);
+
+    ctx.textAlign = 'left'; ctx.fillStyle = '#94a3b8'; ctx.font = '10px monospace';
+    ctx.fillText(`${formatEst(s.est, isLog)} [${formatEst(s.ci[0], isLog)}, ${formatEst(s.ci[1], isLog)}]`, xScale(eMax) + 5, y + 4);
+  });
+}
+
+function renderFunnel() {
+  const canvas = document.getElementById('funnelCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const data = lastResults.data;
+  const r = lastResults;
+  const pad = { top: 40, right: 40, bottom: 60, left: 70 };
+  const pw = W - pad.left - pad.right, ph = H - pad.top - pad.bottom;
+
+  const waldRatios = data.map(d => ({ ratio: d.by/d.bx, se: Math.abs(d.sey/d.bx), snp: d.snp }));
+  const ivwBeta = r.ivw.beta;
+
+  const ratioMin = Math.min(...waldRatios.map(w => w.ratio)) - 0.1;
+  const ratioMax = Math.max(...waldRatios.map(w => w.ratio)) + 0.1;
+  const seMax = Math.max(...waldRatios.map(w => w.se)) * 1.2;
+
+  const xScale = v => pad.left + ((v - ratioMin) / (ratioMax - ratioMin)) * pw;
+  const yScale = v => pad.top + (v / seMax) * ph; // 0 at top, seMax at bottom
+
+  // Pseudo-CI region (inverted funnel)
+  ctx.fillStyle = 'rgba(99,102,241,0.06)';
+  ctx.beginPath();
+  ctx.moveTo(xScale(ivwBeta), yScale(0));
+  ctx.lineTo(xScale(ivwBeta - 1.96*seMax), yScale(seMax));
+  ctx.lineTo(xScale(ivwBeta + 1.96*seMax), yScale(seMax));
+  ctx.closePath(); ctx.fill();
+
+  // Center line
+  ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 1.5; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(xScale(ivwBeta), yScale(0)); ctx.lineTo(xScale(ivwBeta), yScale(seMax)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 95% CI lines
+  ctx.strokeStyle = 'rgba(99,102,241,0.3)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(xScale(ivwBeta), yScale(0)); ctx.lineTo(xScale(ivwBeta - 1.96*seMax), yScale(seMax)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(xScale(ivwBeta), yScale(0)); ctx.lineTo(xScale(ivwBeta + 1.96*seMax), yScale(seMax)); ctx.stroke();
+
+  // Grid
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + (ph/5)*i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W-pad.right, y); ctx.stroke();
+    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText((seMax*i/5).toFixed(3), pad.left-8, y+4);
+  }
+
+  // Points
+  const outlierSNPs = new Set((r.presso.outliers || []).map(o => o.snp));
+  for (const w of waldRatios) {
+    const x = xScale(w.ratio), y = yScale(w.se);
+    const isOut = outlierSNPs.has(w.snp);
+    ctx.beginPath(); ctx.arc(x, y, isOut ? 6 : 5, 0, Math.PI*2);
+    ctx.fillStyle = isOut ? '#ef4444' : '#e2e8f0'; ctx.fill();
+    ctx.strokeStyle = isOut ? '#dc2626' : '#94a3b8'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+
+  // Axis labels
+  ctx.fillStyle = '#94a3b8'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Wald ratio (βY / βX)', pad.left + pw/2, H - 10);
+  ctx.save(); ctx.translate(16, pad.top + ph/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('SE of Wald ratio', 0, 0);
+  ctx.restore();
+
+  ctx.font = '11px sans-serif'; ctx.fillStyle = '#64748b';
+  ctx.fillText('← More precise', pad.left + pw/2, pad.top - 8);
+}
+
+function renderLOO() {
+  const canvas = document.getElementById('looCanvas');
+  const r = lastResults;
+  const loo = r.loo;
+  const scale = document.getElementById('effectScale').value;
+  const isLog = scale === 'log' || scale === 'logRR';
+
+  canvas.height = Math.max(400, (loo.length + 2) * 28 + 80);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { top: 40, right: 40, bottom: 40, left: 180 };
+  const pw = W - pad.left - pad.right;
+  const rowH = 24;
+
+  const allEst = [...loo.flatMap(l => l.ci), r.ivw.ci[0], r.ivw.ci[1]];
+  const eMin = Math.min(...allEst) * 1.15;
+  const eMax = Math.max(...allEst) * 1.15;
+  const xScale = v => pad.left + ((v - eMin) / (eMax - eMin)) * pw;
+
+  // Null line
+  ctx.strokeStyle = '#475569'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(xScale(0), pad.top); ctx.lineTo(xScale(0), H-pad.bottom); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Full estimate band
+  ctx.fillStyle = 'rgba(99,102,241,0.1)';
+  ctx.fillRect(xScale(r.ivw.ci[0]), pad.top, xScale(r.ivw.ci[1]) - xScale(r.ivw.ci[0]), H - pad.top - pad.bottom);
+
+  // LOO rows
+  loo.forEach((l, i) => {
+    const y = pad.top + 10 + i * rowH;
+    const color = Math.abs(l.change) > r.ivw.se ? '#ef4444' : '#818cf8';
+
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(xScale(l.ci[0]), y); ctx.lineTo(xScale(l.ci[1]), y); ctx.stroke();
+    ctx.beginPath(); ctx.arc(xScale(l.beta), y, 4, 0, Math.PI*2);
+    ctx.fillStyle = color; ctx.fill();
+
+    ctx.fillStyle = '#e2e8f0'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(`Excl. ${l.excluded}`, pad.left - 8, y + 4);
+  });
+
+  // Full estimate diamond
+  const lastY = pad.top + 10 + loo.length * rowH + 20;
+  const cx = xScale(r.ivw.beta), lx = xScale(r.ivw.ci[0]), rx = xScale(r.ivw.ci[1]);
+  ctx.beginPath();
+  ctx.moveTo(lx, lastY); ctx.lineTo(cx, lastY-6); ctx.lineTo(rx, lastY); ctx.lineTo(cx, lastY+6); ctx.closePath();
+  ctx.fillStyle = '#6366f1'; ctx.fill();
+
+  ctx.fillStyle = '#6366f1'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText('All SNPs', pad.left - 8, lastY + 4);
+
+  // LOO table
+  document.querySelector('#looTable tbody').innerHTML = loo.map(l => {
+    const changeColor = Math.abs(l.change) > r.ivw.se ? 'color:var(--red)' : '';
+    return `<tr><td>${l.excluded}</td><td>${formatEst(l.beta, isLog)}</td><td>${l.se.toFixed(4)}</td><td>${formatEst(l.ci[0], isLog)} to ${formatEst(l.ci[1], isLog)}</td><td>${l.p < 0.001 ? l.p.toExponential(2) : l.p.toFixed(4)}</td><td style="${changeColor}">${l.change >= 0 ? '+' : ''}${l.change.toFixed(5)}</td></tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// EXAMPLE DATASETS
+// ═══════════════════════════════════════════════════════
+
+const EXAMPLES = {
+  ldl_chd: {
+    exposure: 'LDL cholesterol', outcome: 'Coronary heart disease',
+    data: `rs12740374\t0.071\t0.006\t0.053\t0.012
+rs629301\t0.065\t0.006\t0.048\t0.011
+rs1564348\t0.038\t0.007\t0.029\t0.013
+rs11206510\t0.049\t0.006\t0.042\t0.011
+rs515135\t0.083\t0.006\t0.068\t0.012
+rs2479409\t0.044\t0.006\t0.030\t0.012
+rs6511720\t0.112\t0.007\t0.089\t0.013
+rs2228671\t0.078\t0.007\t0.056\t0.013
+rs1529729\t0.034\t0.006\t0.025\t0.012
+rs4299376\t0.049\t0.006\t0.035\t0.011
+rs3184504\t0.042\t0.006\t0.032\t0.011
+rs7412\t0.191\t0.010\t0.161\t0.017
+rs429358\t0.126\t0.008\t0.095\t0.015
+rs1367117\t0.058\t0.006\t0.043\t0.011
+rs4420638\t0.155\t0.008\t0.124\t0.014
+rs6544713\t0.042\t0.006\t0.028\t0.012
+rs11591147\t0.212\t0.017\t0.173\t0.032
+rs10401969\t0.051\t0.008\t0.036\t0.015
+rs2006760\t0.029\t0.006\t0.020\t0.012
+rs4939883\t0.036\t0.006\t0.027\t0.011
+rs7953249\t0.031\t0.006\t0.021\t0.012
+rs2072183\t0.025\t0.006\t0.018\t0.011
+rs3757354\t0.039\t0.007\t0.027\t0.013
+rs2642442\t0.028\t0.006\t0.019\t0.011
+rs217386\t0.023\t0.006\t0.015\t0.012
+rs2954029\t0.037\t0.006\t0.026\t0.011
+rs10195252\t0.020\t0.006\t0.012\t0.012
+rs4846914\t0.024\t0.006\t0.016\t0.011`
+  },
+  bmi_t2d: {
+    exposure: 'BMI', outcome: 'Type 2 Diabetes',
+    data: `rs1558902\t0.090\t0.005\t0.145\t0.021
+rs6567160\t0.051\t0.005\t0.082\t0.022
+rs13021737\t0.048\t0.006\t0.073\t0.024
+rs10938397\t0.038\t0.005\t0.061\t0.022
+rs543874\t0.043\t0.006\t0.068\t0.024
+rs2207139\t0.041\t0.006\t0.062\t0.023
+rs7138803\t0.033\t0.005\t0.053\t0.022
+rs10182181\t0.030\t0.005\t0.048\t0.022
+rs1928295\t0.027\t0.005\t0.041\t0.022
+rs3101336\t0.029\t0.005\t0.046\t0.022
+rs12446632\t0.035\t0.006\t0.050\t0.025
+rs2112347\t0.026\t0.005\t0.038\t0.022
+rs3817334\t0.024\t0.005\t0.034\t0.022
+rs9581854\t0.032\t0.006\t0.049\t0.025`
+  },
+  sbp_stroke: {
+    exposure: 'Systolic BP', outcome: 'Stroke',
+    data: `rs17367504\t1.8\t0.2\t0.042\t0.011
+rs3184504\t1.3\t0.2\t0.031\t0.012
+rs12946454\t1.1\t0.2\t0.025\t0.012
+rs16998073\t1.4\t0.2\t0.033\t0.011
+rs1004467\t1.2\t0.2\t0.028\t0.012
+rs11191548\t1.6\t0.2\t0.038\t0.013
+rs12940887\t1.0\t0.2\t0.023\t0.012
+rs381815\t1.5\t0.3\t0.036\t0.015`
+  },
+  crp_chd: {
+    exposure: 'C-reactive protein', outcome: 'CHD (with pleiotropy)',
+    data: `rs1205\t0.15\t0.01\t0.008\t0.012
+rs1800947\t0.10\t0.02\t0.003\t0.015
+rs3091244\t0.12\t0.01\t-0.005\t0.013
+rs1130864\t0.08\t0.01\t0.025\t0.012
+rs4129267\t0.18\t0.01\t0.042\t0.011`
+  }
+};
+
+function loadExample(key) {
+  const ex = EXAMPLES[key];
+  document.getElementById('exposureName').value = ex.exposure;
+  document.getElementById('outcomeName').value = ex.outcome;
+  document.getElementById('dataInput').value = ex.data.trim();
+}
+
+// ═══════════════════════════════════════════════════════
+// UI UTILITIES
+// ═══════════════════════════════════════════════════════
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t => { if (t.textContent.toLowerCase().includes(name) || t.onclick.toString().includes(name)) t.classList.add('active'); });
+  // Fix tab highlighting
+  document.querySelectorAll('.tab').forEach(t => {
+    const match = t.getAttribute('onclick')?.match(/showTab\('(\w+)'\)/);
+    if (match && match[1] === name) t.classList.add('active');
+  });
+}
+
+function clearData() {
+  document.getElementById('dataInput').value = '';
+  document.getElementById('exposureName').value = '';
+  document.getElementById('outcomeName').value = '';
+}
+
+function importCSV() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.csv,.tsv,.txt';
+  input.onchange = e => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const text = ev.target.result;
+      // Skip header if present
+      const lines = text.trim().split('\n');
+      const first = lines[0].split(/[\t,]/);
+      const hasHeader = isNaN(parseFloat(first[1]));
+      document.getElementById('dataInput').value = hasHeader ? lines.slice(1).join('\n') : text.trim();
+    };
+    reader.readAsText(e.target.files[0]);
+  };
+  input.click();
+}
+
+function exportCSV() {
+  if (!lastResults) return;
+  const r = lastResults;
+  const scale = document.getElementById('effectScale').value;
+  const isLog = scale === 'log' || scale === 'logRR';
+  let csv = 'Method,Estimate,SE,CI_lower,CI_upper,P_value\n';
+  const methods = [
+    { n: 'IVW_fixed', ...r.ivw },
+    { n: 'IVW_random', beta: r.ivw.beta, se: r.ivw.se_re, ci: r.ivw.ci_re, p: r.ivw.p_re },
+    { n: 'MR_Egger', ...r.egger },
+    { n: 'Weighted_Median', ...r.wmed },
+    { n: 'Simple_Median', ...r.smed }
+  ];
+  for (const m of methods) {
+    csv += `${m.n},${m.beta},${m.se},${m.ci[0]},${m.ci[1]},${m.p}\n`;
+  }
+  csv += `\nDiagnostics\nCochran_Q,${r.ivw.Q}\nI2,${r.ivw.I2}\nEgger_intercept,${r.egger.intercept}\nEgger_intercept_P,${r.egger.intercept_p}\nMR_PRESSO_global_P,${r.presso.globalP}\nMean_F,${r.fStats.mean}\n`;
+  downloadText(csv, 'mr_results.csv');
+}
+
+function exportReport() {
+  if (!lastResults) return;
+  const r = lastResults;
+  const exp = document.getElementById('exposureName').value;
+  const out = document.getElementById('outcomeName').value;
+  let txt = `Mendelian Randomization Report\n${'='.repeat(40)}\n`;
+  txt += `Exposure: ${exp}\nOutcome: ${out}\nSNP instruments: ${r.data.length}\n\n`;
+  txt += `IVW (fixed): β=${r.ivw.beta.toFixed(4)}, SE=${r.ivw.se.toFixed(4)}, P=${r.ivw.p.toExponential(3)}\n`;
+  txt += `IVW (random): β=${r.ivw.beta.toFixed(4)}, SE=${r.ivw.se_re.toFixed(4)}, P=${r.ivw.p_re.toExponential(3)}\n`;
+  txt += `MR-Egger: β=${r.egger.beta.toFixed(4)}, SE=${r.egger.se.toFixed(4)}, P=${r.egger.p.toExponential(3)}\n`;
+  txt += `  Intercept: ${r.egger.intercept.toFixed(5)}, P=${r.egger.intercept_p.toFixed(4)}\n`;
+  txt += `Weighted Median: β=${r.wmed.beta.toFixed(4)}, SE=${r.wmed.se.toFixed(4)}, P=${r.wmed.p.toExponential(3)}\n`;
+  txt += `Simple Median: β=${r.smed.beta.toFixed(4)}, SE=${r.smed.se.toFixed(4)}, P=${r.smed.p.toExponential(3)}\n\n`;
+  txt += `Heterogeneity: Q=${r.ivw.Q.toFixed(2)}, I²=${r.ivw.I2.toFixed(1)}%\n`;
+  txt += `Egger intercept P: ${r.egger.intercept_p.toFixed(4)}\n`;
+  txt += `MR-PRESSO global P: ${r.presso.globalP.toFixed(4)}\n`;
+  txt += `Mean F-statistic: ${r.fStats.mean.toFixed(1)}\n`;
+  if (r.presso.outliers.length > 0) {
+    txt += `PRESSO outliers: ${r.presso.outliers.map(o=>o.snp).join(', ')}\n`;
+  }
+  downloadText(txt, 'mr_report.txt');
+}
+
+function exportPlot(canvasId, filename) {
+  const canvas = document.getElementById(canvasId);
+  const link = document.createElement('a');
+  link.download = filename + '.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+function downloadText(text, filename) {
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// Auto-save to localStorage
+function saveState() {
+  try {
+    localStorage.setItem('mendelianmr_data', JSON.stringify({
+      exposure: document.getElementById('exposureName').value,
+      outcome: document.getElementById('outcomeName').value,
+      data: document.getElementById('dataInput').value,
+      scale: document.getElementById('effectScale').value,
+      alpha: document.getElementById('alpha').value
+    }));
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem('mendelianmr_data'));
+    if (s) {
+      document.getElementById('exposureName').value = s.exposure || '';
+      document.getElementById('outcomeName').value = s.outcome || '';
+      document.getElementById('dataInput').value = s.data || '';
+      if (s.scale) document.getElementById('effectScale').value = s.scale;
+      if (s.alpha) document.getElementById('alpha').value = s.alpha;
+    }
+  } catch(e) {}
+}
+
+document.addEventListener('DOMContentLoaded', loadState);
+window.addEventListener('beforeunload', saveState);
+</script>
+</body>
+</html>
