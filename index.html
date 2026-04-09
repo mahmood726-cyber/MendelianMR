@@ -83,7 +83,7 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
 <div class="container">
 <header>
   <h1>MendelianMR</h1>
-  <p>Browser-based Mendelian Randomization analysis — IVW, MR-Egger, Weighted Median, MR-PRESSO, MR-RAPS, Mode-based, Contamination Mixture</p>
+  <p>Browser-based Mendelian Randomization analysis — IVW, MR-Egger, Weighted Median, MR-PRESSO, MR-RAPS, Mode-based, Contamination Mixture, Radial MR, MR-Clust</p>
 </header>
 
 <div class="tabs">
@@ -93,6 +93,8 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
   <div class="tab" onclick="showTab('forest')">Forest Plot</div>
   <div class="tab" onclick="showTab('funnel')">Funnel Plot</div>
   <div class="tab" onclick="showTab('loo')">Leave-One-Out</div>
+  <div class="tab" onclick="showTab('radial')">Radial</div>
+  <div class="tab" onclick="showTab('clusters')">Clusters</div>
   <div class="tab" onclick="showTab('advanced')">Advanced</div>
   <div class="tab" onclick="showTab('guide')">Guide</div>
 </div>
@@ -239,6 +241,72 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
   </div>
 </div>
 
+<!-- RADIAL MR -->
+<div class="panel" id="panel-radial">
+  <div class="card">
+    <h3>Radial MR (Bowden et al. 2018, Stat Med)</h3>
+    <div class="info-box">
+      Transforms data to radial coordinates: X<sub>j</sub> = &radic;w<sub>j</sub>, Y<sub>j</sub> = &beta;<sub>Yj</sub>&radic;w<sub>j</sub> / &beta;<sub>Xj</sub> where w<sub>j</sub> = 1/SE<sub>Yj</sub>&sup2;. Radial IVW = WLS through origin; Radial MR-Egger = WLS with intercept. Modified Cochran's Q identifies outliers more reliably than standard Q.
+    </div>
+    <div id="radialSummaryStats" class="stat-grid" style="margin-bottom:16px"></div>
+  </div>
+  <div class="card">
+    <h3>Radial Plot</h3>
+    <p style="color:var(--text2);font-size:0.85rem;margin-bottom:8px">Scatter in radial coordinates. Outliers identified by per-SNP Q contribution (|Q<sub>j</sub>| > &chi;&sup2;<sub>1,0.05</sub> = 3.84).</p>
+    <div class="plot-container"><canvas id="radialCanvas" width="900" height="600"></canvas></div>
+    <div class="btn-group">
+      <button class="btn btn-secondary btn-sm" onclick="exportPlot('radialCanvas','mr_radial')">Export PNG</button>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Per-SNP Q Contributions (Rucker's Q')</h3>
+    <table id="radialQTable">
+      <thead><tr><th>SNP</th><th>X (radial)</th><th>Y (radial)</th><th>Q<sub>j</sub></th><th>P-value</th><th>Outlier</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Radial Method Estimates</h3>
+    <table id="radialMethodTable">
+      <thead><tr><th>Method</th><th>Estimate</th><th>SE</th><th>95% CI</th><th>P-value</th><th>Q statistic</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MR-CLUST -->
+<div class="panel" id="panel-clusters">
+  <div class="card">
+    <h3>MR-Clust (Foley et al. 2021, Bioinformatics)</h3>
+    <div class="info-box">
+      Clusters Wald ratios using k-means (k=2,3,4) with BIC selection. Each cluster represents a potential causal mechanism or pleiotropic pathway. Instruments with |z-residual| > 3 are assigned to a junk cluster.
+    </div>
+    <div id="clustSummaryStats" class="stat-grid" style="margin-bottom:16px"></div>
+  </div>
+  <div class="card">
+    <h3>Cluster Scatter Plot</h3>
+    <p style="color:var(--text2);font-size:0.85rem;margin-bottom:8px">SNPs color-coded by cluster assignment. Each cluster's causal estimate shown as a line through the origin.</p>
+    <div class="plot-container"><canvas id="clusterCanvas" width="900" height="600"></canvas></div>
+    <div class="btn-group">
+      <button class="btn btn-secondary btn-sm" onclick="exportPlot('clusterCanvas','mr_clusters')">Export PNG</button>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Cluster Assignments</h3>
+    <table id="clusterTable">
+      <thead><tr><th>SNP</th><th>Wald Ratio</th><th>SE</th><th>Cluster</th><th>Cluster Estimate</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Cluster-Specific Estimates</h3>
+    <table id="clusterEstTable">
+      <thead><tr><th>Cluster</th><th>N instruments</th><th>Estimate</th><th>SE</th><th>95% CI</th><th>Interpretation</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
 <!-- ADVANCED METHODS -->
 <div class="panel" id="panel-advanced">
   <div class="card">
@@ -259,6 +327,46 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
     <h3>Advanced Diagnostics</h3>
     <table id="advDiagTable">
       <thead><tr><th>Test</th><th>Statistic</th><th>P-value</th><th>Interpretation</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Cochran's Q Decomposition (Bowden et al. 2019)</h3>
+    <div class="info-box">
+      Decomposes total Q into Q<sub>balanced</sub> (non-directional heterogeneity, inflates variance but does not bias) and Q<sub>unbalanced</sub> (directional pleiotropy, biases the estimate). If Q<sub>balanced</sub> dominates: random-effects IVW is appropriate. If Q<sub>unbalanced</sub> is significant: need MR-Egger.
+    </div>
+    <div id="qDecompStats" class="stat-grid" style="margin-bottom:16px"></div>
+    <table id="qDecompTable">
+      <thead><tr><th>Component</th><th>Q statistic</th><th>df</th><th>P-value</th><th>Interpretation</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Reverse MR / Bidirectional Test</h3>
+    <div class="info-box">
+      Swaps exposure and outcome: uses &beta;<sub>Y</sub> as instrument-exposure and &beta;<sub>X</sub> as instrument-outcome, then runs IVW in the reverse direction. If both forward and reverse are significant, this may indicate a shared pathway rather than unidirectional causation.
+    </div>
+    <div id="reverseMRStats" class="stat-grid" style="margin-bottom:16px"></div>
+    <table id="reverseMRTable">
+      <thead><tr><th>Direction</th><th>Estimate</th><th>SE</th><th>95% CI</th><th>P-value</th><th>Interpretation</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Conditional F-statistic (Sanderson et al. 2019)</h3>
+    <div class="info-box">
+      Adjusts F-statistic for potential pleiotropy. F<sub>conditional</sub> = F<sub>overall</sub> &times; (1 &minus; R&sup2;<sub>pleiotropy</sub>). If F<sub>cond</sub> &gt; 10: reliable inference. Accounts for the fraction of instrument variance explained by pleiotropic pathways.
+    </div>
+    <div id="condFStats" class="stat-grid" style="margin-bottom:16px"></div>
+  </div>
+  <div class="card">
+    <h3>Outlier-Robust IVW (Penalized / Huber weights)</h3>
+    <div class="info-box">
+      Downweights outlier SNPs using Huber weights (k=1.345). Iteratively: compute residuals, apply Huber psi function, re-weight, re-estimate. More resistant to individual pleiotropic variants than standard IVW.
+    </div>
+    <div id="huberStats" class="stat-grid" style="margin-bottom:16px"></div>
+    <table id="huberTable">
+      <thead><tr><th>Method</th><th>Estimate</th><th>SE</th><th>95% CI</th><th>P-value</th><th>Interpretation</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -285,6 +393,12 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
       <tr><td><strong>MR-RAPS</strong></td><td>Robust Adjusted Profile Score (Zhao et al. 2020). Iterative profile score with overdispersion. More robust than IVW under weak instruments.</td></tr>
       <tr><td><strong>Mode-based</strong></td><td>Hartwig et al. 2017. Weighted kernel density mode of Wald ratios. Consistent if plurality (not majority) of instruments are valid.</td></tr>
       <tr><td><strong>Contamination Mixture</strong></td><td>Profile likelihood classifying instruments as valid/invalid. Robust to mixed validity.</td></tr>
+      <tr><td><strong>Radial MR</strong></td><td>Bowden et al. 2018. Transforms to radial coordinates for more reliable outlier detection via modified Cochran's Q. Radial IVW (through origin) and Radial MR-Egger (with intercept).</td></tr>
+      <tr><td><strong>MR-Clust</strong></td><td>Foley et al. 2021. Clusters Wald ratios via k-means with BIC selection to identify distinct causal mechanisms or pleiotropic pathways.</td></tr>
+      <tr><td><strong>Q Decomposition</strong></td><td>Bowden et al. 2019. Splits Cochran's Q into balanced (non-directional) and unbalanced (directional pleiotropy) components.</td></tr>
+      <tr><td><strong>Reverse MR</strong></td><td>Bidirectional test swapping exposure and outcome to check for reverse causation or shared pathways.</td></tr>
+      <tr><td><strong>Conditional F</strong></td><td>Sanderson et al. 2019. Adjusts F-statistic for pleiotropy. F_cond > 10 for reliable inference.</td></tr>
+      <tr><td><strong>Outlier-Robust IVW</strong></td><td>Penalized IVW using Huber weights (k=1.345) to downweight outlier SNPs iteratively.</td></tr>
     </table>
     <h3 style="margin-top:16px">Key Assumptions</h3>
     <table>
@@ -303,7 +417,7 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
 </div>
 
 <footer>
-  MendelianMR v2.0 — Mahmood Ahmad, Tahir Heart Institute — Offline-first, no data leaves your browser
+  MendelianMR v3.0 — Mahmood Ahmad, Tahir Heart Institute — Offline-first, no data leaves your browser
 </footer>
 </div>
 
@@ -1099,6 +1213,487 @@ function predictionInterval(ivwResult, data) {
 }
 
 // ═══════════════════════════════════════════════════════
+// NEW ADVANCED MR METHODS (v3.0)
+// ═══════════════════════════════════════════════════════
+
+function radialMR(data) {
+  // Radial MR (Bowden et al. 2018, Stat Med)
+  // Uses second-order IVW weights: w_j = bx_j^2 / sey_j^2
+  // Radial transform: X_j = sqrt(w_j), Y_j = (by_j/bx_j) * sqrt(w_j)
+  // Then IVW through origin in radial space recovers the standard IVW estimate
+  const k = data.length;
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha / 2);
+
+  // Compute radial coordinates using second-order weights
+  const radialData = data.map(d => {
+    const w = (d.bx * d.bx) / (d.sey * d.sey);  // IVW second-order weight
+    const sqrtW = Math.sqrt(w);
+    const ratio = d.by / d.bx;
+    return {
+      snp: d.snp,
+      x: sqrtW,          // sqrt(w_j)
+      y: ratio * sqrtW,  // (beta_Yj/beta_Xj) * sqrt(w_j)
+      w: w,
+      ratio: ratio,
+      se_ratio: Math.abs(d.sey / d.bx)
+    };
+  });
+
+  // --- Radial IVW: OLS regression through origin in radial space ---
+  // Y_j = beta * X_j + eps_j (weights already incorporated via transformation)
+  let sumXY = 0, sumXX = 0;
+  for (const rd of radialData) {
+    sumXY += rd.x * rd.y;
+    sumXX += rd.x * rd.x;
+  }
+  const betaRadIVW = sumXY / sumXX;
+  const seRadIVW = 1 / Math.sqrt(sumXX);
+  const zRadIVW = betaRadIVW / seRadIVW;
+  const pRadIVW = 2 * (1 - normalCDF(Math.abs(zRadIVW)));
+
+  // Modified Cochran's Q (radial): Q_radial = sum( (Y_j - beta*X_j)^2 )
+  let Q_radial = 0;
+  const qContributions = [];
+  for (const rd of radialData) {
+    const resid = rd.y - betaRadIVW * rd.x;
+    const qj = resid * resid; // Each Q_j contribution
+    Q_radial += qj;
+    const pj = chiSqPValue(qj, 1); // Q_j ~ chi-sq(1) under null
+    qContributions.push({
+      snp: rd.snp,
+      x: rd.x, y: rd.y,
+      qj: qj,
+      pj: pj,
+      outlier: qj > 3.841 // chi-sq(1, 0.05)
+    });
+  }
+  const Q_radial_p = chiSqPValue(Q_radial, k - 1);
+
+  // --- Radial MR-Egger: OLS regression with intercept in radial space ---
+  // Y_j = alpha + beta * X_j + eps_j
+  let sX = 0, sY = 0, sXX = 0, sXY = 0;
+  const n = k;
+  for (const rd of radialData) {
+    sX += rd.x;
+    sY += rd.y;
+    sXX += rd.x * rd.x;
+    sXY += rd.x * rd.y;
+  }
+  const xMean = sX / n;
+  const yMean = sY / n;
+  const Sxx_eg = sXX - n * xMean * xMean;
+  const Sxy_eg = sXY - n * xMean * yMean;
+  const betaRadEgger = Sxy_eg / Sxx_eg;
+  const interceptRadEgger = yMean - betaRadEgger * xMean;
+
+  // Residual variance for Radial Egger
+  let ssrEgger = 0;
+  for (const rd of radialData) {
+    const res = rd.y - interceptRadEgger - betaRadEgger * rd.x;
+    ssrEgger += res * res;
+  }
+  const sigmaEgger = ssrEgger / (k - 2);
+  const seRadEgger = Math.sqrt(sigmaEgger / Sxx_eg);
+  const seRadEggerIntercept = Math.sqrt(sigmaEgger * (1 / n + xMean * xMean / Sxx_eg));
+
+  const tEgger = betaRadEgger / seRadEgger;
+  const pRadEgger = 2 * (1 - tCDF(Math.abs(tEgger), k - 2));
+  const tEggerInt = interceptRadEgger / seRadEggerIntercept;
+  const pRadEggerInt = 2 * (1 - tCDF(Math.abs(tEggerInt), k - 2));
+
+  // Rucker's Q' (Egger Q in radial space)
+  let Q_egger_radial = 0;
+  for (const rd of radialData) {
+    const res = rd.y - interceptRadEgger - betaRadEgger * rd.x;
+    Q_egger_radial += res * res;
+  }
+  const Q_egger_radial_p = chiSqPValue(Q_egger_radial, k - 2);
+
+  return {
+    method: 'Radial MR',
+    ivw: {
+      beta: betaRadIVW, se: seRadIVW,
+      ci: [betaRadIVW - zc * seRadIVW, betaRadIVW + zc * seRadIVW],
+      p: pRadIVW, Q: Q_radial, Qp: Q_radial_p
+    },
+    egger: {
+      beta: betaRadEgger, se: seRadEgger,
+      ci: [betaRadEgger - zc * seRadEgger, betaRadEgger + zc * seRadEgger],
+      p: pRadEgger,
+      intercept: interceptRadEgger, intercept_se: seRadEggerIntercept,
+      intercept_p: pRadEggerInt,
+      Q: Q_egger_radial, Qp: Q_egger_radial_p
+    },
+    radialData: radialData,
+    qContributions: qContributions,
+    nOutliers: qContributions.filter(q => q.outlier).length,
+    k: k
+  };
+}
+
+function mrClust(data) {
+  // MR-Clust (Foley et al. 2021, simplified k-means BIC)
+  // Cluster Wald ratios using k-means with BIC selection
+  const k = data.length;
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha / 2);
+  const rng = xoshiro128ss(2021);
+
+  const ratios = data.map(d => d.by / d.bx);
+  const seRatios = data.map(d => Math.abs(d.sey / d.bx));
+  const weights = seRatios.map(s => 1 / (s * s));
+
+  // First: identify junk cluster (|z| > 3 from weighted mean)
+  const totalW = weights.reduce((a, b) => a + b, 0);
+  const wMean = ratios.reduce((s, r, i) => s + weights[i] * r, 0) / totalW;
+  const wVar = ratios.reduce((s, r, i) => s + weights[i] * (r - wMean) * (r - wMean), 0) / totalW;
+  const wSD = Math.sqrt(wVar);
+  const junkFlags = ratios.map((r, i) => Math.abs(r - wMean) / seRatios[i] > 3);
+
+  // Non-junk indices
+  const validIdx = [];
+  for (let i = 0; i < k; i++) {
+    if (!junkFlags[i]) validIdx.push(i);
+  }
+
+  // K-means on non-junk Wald ratios (k=1,2,3,4), select by BIC
+  function kmeans(values, wts, nClust, maxIter) {
+    const n = values.length;
+    if (nClust >= n) return null;
+    // Initialize centroids: spread across range
+    const sorted = values.slice().sort((a, b) => a - b);
+    const centroids = [];
+    for (let c = 0; c < nClust; c++) {
+      centroids.push(sorted[Math.floor((c + 0.5) * n / nClust)]);
+    }
+    let assignments = new Array(n).fill(0);
+    for (let iter = 0; iter < maxIter; iter++) {
+      // Assign
+      let changed = false;
+      for (let i = 0; i < n; i++) {
+        let bestC = 0, bestD = Infinity;
+        for (let c = 0; c < nClust; c++) {
+          const d = Math.abs(values[i] - centroids[c]);
+          if (d < bestD) { bestD = d; bestC = c; }
+        }
+        if (assignments[i] !== bestC) { assignments[i] = bestC; changed = true; }
+      }
+      if (!changed) break;
+      // Update centroids (weighted)
+      for (let c = 0; c < nClust; c++) {
+        let sw = 0, swv = 0;
+        for (let i = 0; i < n; i++) {
+          if (assignments[i] === c) { sw += wts[i]; swv += wts[i] * values[i]; }
+        }
+        if (sw > 0) centroids[c] = swv / sw;
+      }
+    }
+    // Compute BIC: -2*loglik + nParams*log(n)
+    // loglik = sum( -0.5 * w_i * (x_i - mu_c)^2 )
+    let loglik = 0;
+    for (let i = 0; i < n; i++) {
+      const res = values[i] - centroids[assignments[i]];
+      loglik += -0.5 * wts[i] * res * res;
+    }
+    const bic = -2 * loglik + nClust * Math.log(n);
+    return { centroids, assignments, bic, loglik };
+  }
+
+  let bestResult = null;
+  let bestBIC = Infinity;
+  let bestK = 1;
+  const validRatios = validIdx.map(i => ratios[i]);
+  const validWeights = validIdx.map(i => weights[i]);
+
+  for (let nC = 1; nC <= Math.min(4, validIdx.length - 1); nC++) {
+    const result = kmeans(validRatios, validWeights, nC, 100);
+    if (result && result.bic < bestBIC) {
+      bestBIC = result.bic;
+      bestResult = result;
+      bestK = nC;
+    }
+  }
+
+  // Build full assignment array (including junk)
+  const clusterAssignments = new Array(k).fill(-1); // -1 = junk
+  if (bestResult) {
+    for (let vi = 0; vi < validIdx.length; vi++) {
+      clusterAssignments[validIdx[vi]] = bestResult.assignments[vi];
+    }
+  }
+
+  // Compute cluster-specific IVW estimates
+  const clusterEstimates = [];
+  for (let c = 0; c < bestK; c++) {
+    const clusterIdx = [];
+    for (let i = 0; i < k; i++) {
+      if (clusterAssignments[i] === c) clusterIdx.push(i);
+    }
+    if (clusterIdx.length === 0) continue;
+    let sw = 0, swr = 0;
+    for (const i of clusterIdx) {
+      const w = (data[i].bx * data[i].bx) / (data[i].sey * data[i].sey);
+      sw += w;
+      swr += w * ratios[i];
+    }
+    const cBeta = swr / sw;
+    const cSE = 1 / Math.sqrt(sw);
+    clusterEstimates.push({
+      cluster: c + 1,
+      n: clusterIdx.length,
+      beta: cBeta,
+      se: cSE,
+      ci: [cBeta - zc * cSE, cBeta + zc * cSE],
+      indices: clusterIdx
+    });
+  }
+
+  // Junk cluster info
+  const junkIdx = [];
+  for (let i = 0; i < k; i++) {
+    if (clusterAssignments[i] === -1) junkIdx.push(i);
+  }
+
+  return {
+    method: 'MR-Clust',
+    bestK: bestK,
+    bic: bestBIC,
+    assignments: clusterAssignments,
+    clusters: clusterEstimates,
+    junkIndices: junkIdx,
+    nJunk: junkIdx.length,
+    ratios: ratios,
+    seRatios: seRatios,
+    k: k
+  };
+}
+
+function cochranQDecomposition(data, ivwResult, eggerResult) {
+  // Cochran's Q decomposition (Bowden et al. 2019, Stat Med)
+  // Q_total = Q_balanced + Q_unbalanced
+  // Q_unbalanced measures directional pleiotropy contribution
+  const k = data.length;
+
+  const Q_total = ivwResult.Q;
+
+  // Compute Q around the Egger regression line (Q_Egger, df=k-2)
+  // This represents heterogeneity after accounting for directional pleiotropy
+  const Q_egger = eggerResult.Q; // Q around Egger line
+
+  // Q_unbalanced = Q_total - Q_Egger (the reduction in Q from adding an intercept)
+  // This tests whether adding the intercept significantly improves the fit
+  // Equivalent to the Rucker framework: Q - Q'
+  const Q_unbalanced = Math.max(0, Q_total - Q_egger);
+  const Q_balanced = Q_egger;
+
+  const p_total = chiSqPValue(Q_total, k - 1);
+  const p_unbalanced = chiSqPValue(Q_unbalanced, 1);
+  const p_balanced = chiSqPValue(Q_balanced, k - 2);
+
+  const ratio = Q_total > 0 ? Q_unbalanced / Q_total : 0;
+
+  let recommendation;
+  if (p_unbalanced < 0.05) {
+    recommendation = 'Significant directional pleiotropy detected. MR-Egger or robust methods recommended over IVW.';
+  } else if (p_balanced < 0.05) {
+    recommendation = 'Non-directional heterogeneity detected. Random-effects IVW is appropriate.';
+  } else {
+    recommendation = 'No significant heterogeneity. Fixed-effect IVW is appropriate.';
+  }
+
+  return {
+    Q_total: Q_total, p_total: p_total,
+    Q_balanced: Q_balanced, p_balanced: p_balanced, df_balanced: k - 2,
+    Q_unbalanced: Q_unbalanced, p_unbalanced: p_unbalanced, df_unbalanced: 1,
+    ratio: ratio,
+    recommendation: recommendation,
+    k: k
+  };
+}
+
+function reverseMR(data) {
+  // Reverse MR / Bidirectional test
+  // Swap exposure and outcome: use beta_Y as instrument-exposure, beta_X as instrument-outcome
+  const k = data.length;
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha / 2);
+
+  // Forward IVW (standard)
+  let sumWf = 0, sumWRf = 0;
+  for (const d of data) {
+    const w = (d.bx * d.bx) / (d.sey * d.sey);
+    sumWf += w;
+    sumWRf += w * (d.by / d.bx);
+  }
+  const betaF = sumWRf / sumWf;
+  const seF = 1 / Math.sqrt(sumWf);
+  const zF = betaF / seF;
+  const pF = 2 * (1 - normalCDF(Math.abs(zF)));
+
+  // Reverse IVW: swap roles
+  // Now beta_Y is the "exposure" and beta_X is the "outcome"
+  // Orient so by > 0
+  const revData = data.map(d => {
+    if (d.by < 0) return { bx: -d.by, sex: d.sey, by: -d.bx, sey: d.sex, snp: d.snp };
+    return { bx: d.by, sex: d.sey, by: d.bx, sey: d.sex, snp: d.snp };
+  });
+
+  let sumWr = 0, sumWRr = 0;
+  for (const d of revData) {
+    const w = (d.bx * d.bx) / (d.sey * d.sey);
+    sumWr += w;
+    sumWRr += w * (d.by / d.bx);
+  }
+  const betaR = sumWRr / sumWr;
+  const seR = 1 / Math.sqrt(sumWr);
+  const zR = betaR / seR;
+  const pR = 2 * (1 - normalCDF(Math.abs(zR)));
+
+  const forwardSig = pF < alpha;
+  const reverseSig = pR < alpha;
+
+  let interpretation;
+  if (forwardSig && !reverseSig) {
+    interpretation = 'Forward significant, reverse not. Supports unidirectional causal effect (exposure -> outcome).';
+  } else if (forwardSig && reverseSig) {
+    interpretation = 'Both directions significant. May indicate shared biological pathway, reverse causation, or confounding rather than simple unidirectional causation.';
+  } else if (!forwardSig && reverseSig) {
+    interpretation = 'Forward not significant but reverse is. Possible reverse causation (outcome -> exposure).';
+  } else {
+    interpretation = 'Neither direction significant. No evidence of causal relationship in either direction.';
+  }
+
+  return {
+    forward: { beta: betaF, se: seF, ci: [betaF - zc * seF, betaF + zc * seF], p: pF },
+    reverse: { beta: betaR, se: seR, ci: [betaR - zc * seR, betaR + zc * seR], p: pR },
+    forwardSig: forwardSig,
+    reverseSig: reverseSig,
+    interpretation: interpretation,
+    k: k
+  };
+}
+
+function conditionalFStat(data, ivwResult) {
+  // Conditional F-statistic (Sanderson et al. 2019, Stat Med)
+  // For univariate: F_conditional = F_overall * (1 - R^2_pleiotropy)
+  const k = data.length;
+
+  // Overall mean F
+  const fVals = data.map(d => (d.bx / d.sex) * (d.bx / d.sex));
+  const meanF = fVals.reduce((s, f) => s + f, 0) / k;
+
+  // Estimate R^2_pleiotropy from IVW residuals
+  // R^2_pleiotropy = proportion of Wald ratio variance explained by pleiotropy
+  // Use Q/(k-1) as estimate of overdispersion relative to expected variance
+  const Q = ivwResult.Q;
+  const I2 = ivwResult.I2 / 100; // As proportion
+
+  // R^2_pleiotropy approximation: use I^2 as proportion of variance due to heterogeneity
+  // which in MR context is often driven by pleiotropy
+  const R2_pleiotropy = I2;
+  const F_conditional = meanF * (1 - R2_pleiotropy);
+
+  let interpretation;
+  if (F_conditional > 10) {
+    interpretation = 'Adequate conditional instrument strength (F_cond > 10). Reliable inference.';
+  } else if (F_conditional > 5) {
+    interpretation = 'Moderate conditional instrument strength (5 < F_cond < 10). Some weak instrument bias possible.';
+  } else {
+    interpretation = 'Weak conditional instrument strength (F_cond < 5). Results may be unreliable.';
+  }
+
+  return {
+    meanF: meanF,
+    R2_pleiotropy: R2_pleiotropy,
+    F_conditional: F_conditional,
+    adequate: F_conditional > 10,
+    interpretation: interpretation,
+    k: k
+  };
+}
+
+function outlierRobustIVW(data) {
+  // Outlier-robust IVW using Huber weights
+  // Iterate: residuals -> Huber psi (k=1.345) -> re-weight -> re-estimate
+  const k = data.length;
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha / 2);
+  const huberK = 1.345; // Standard Huber tuning constant for 95% efficiency
+
+  const ratios = data.map(d => d.by / d.bx);
+  const ivwWeights = data.map(d => (d.bx * d.bx) / (d.sey * d.sey));
+
+  // Initialize with standard IVW
+  let totalW = ivwWeights.reduce((a, b) => a + b, 0);
+  let beta = ivwWeights.reduce((s, w, i) => s + w * ratios[i], 0) / totalW;
+
+  const huberWeights = new Array(k).fill(1);
+
+  // Iterate
+  for (let iter = 0; iter < 50; iter++) {
+    // Compute standardized residuals
+    let sumWR2 = 0;
+    for (let i = 0; i < k; i++) {
+      const res = ratios[i] - beta;
+      sumWR2 += ivwWeights[i] * res * res;
+    }
+    const sigma = Math.sqrt(sumWR2 / (k - 1));
+
+    // Huber weights
+    let newBeta_num = 0, newBeta_den = 0;
+    for (let i = 0; i < k; i++) {
+      const res = ratios[i] - beta;
+      const stdRes = sigma > 0 ? Math.abs(res) / sigma : 0;
+      // Huber psi function: weight = 1 if |r| <= k, else k/|r|
+      huberWeights[i] = stdRes <= huberK ? 1 : huberK / stdRes;
+      const combinedW = ivwWeights[i] * huberWeights[i];
+      newBeta_num += combinedW * ratios[i];
+      newBeta_den += combinedW;
+    }
+    const newBeta = newBeta_num / newBeta_den;
+
+    if (Math.abs(newBeta - beta) < 1e-10) {
+      beta = newBeta;
+      break;
+    }
+    beta = newBeta;
+  }
+
+  // SE with Huber weights
+  let sumCombW = 0;
+  for (let i = 0; i < k; i++) {
+    sumCombW += ivwWeights[i] * huberWeights[i];
+  }
+  const se = 1 / Math.sqrt(sumCombW);
+  const z = beta / se;
+  const p = 2 * (1 - normalCDF(Math.abs(z)));
+
+  // Count downweighted SNPs
+  const nDownweighted = huberWeights.filter(w => w < 0.99).length;
+
+  // Standard IVW for comparison
+  const totalW0 = ivwWeights.reduce((a, b) => a + b, 0);
+  const beta0 = ivwWeights.reduce((s, w, i) => s + w * ratios[i], 0) / totalW0;
+  const se0 = 1 / Math.sqrt(totalW0);
+  const z0 = beta0 / se0;
+  const p0 = 2 * (1 - normalCDF(Math.abs(z0)));
+
+  return {
+    method: 'Outlier-Robust IVW',
+    beta: beta, se: se,
+    ci: [beta - zc * se, beta + zc * se],
+    p: p,
+    huberWeights: huberWeights,
+    nDownweighted: nDownweighted,
+    standard: { beta: beta0, se: se0, ci: [beta0 - zc * se0, beta0 + zc * se0], p: p0 },
+    diff: Math.abs(beta - beta0),
+    diffPct: beta0 !== 0 ? Math.abs((beta - beta0) / beta0) * 100 : 0,
+    k: k
+  };
+}
+
+// ═══════════════════════════════════════════════════════
 // SEEDED PRNG (xoshiro128**)
 // ═══════════════════════════════════════════════════════
 
@@ -1152,14 +1747,25 @@ function runAnalysis() {
   const contMixRes = contaminationMixture(data);
   const predIntRes = predictionInterval(ivwRes, data);
 
+  // New v3.0 methods
+  const radialRes = radialMR(data);
+  const clustRes = mrClust(data);
+  const qDecompRes = cochranQDecomposition(data, ivwRes, eggerRes);
+  const reverseRes = reverseMR(data);
+  const condFRes = conditionalFStat(data, ivwRes);
+  const huberRes = outlierRobustIVW(data);
+
   lastResults = { ivw: ivwRes, egger: eggerRes, wmed: wmedRes, smed: smedRes, presso: pressoRes, loo: looRes, fStats, data,
-    raps: rapsRes, mode: modeRes, i2gx: i2gxRes, steiger: steigerRes, contMix: contMixRes, predInt: predIntRes };
+    raps: rapsRes, mode: modeRes, i2gx: i2gxRes, steiger: steigerRes, contMix: contMixRes, predInt: predIntRes,
+    radial: radialRes, clust: clustRes, qDecomp: qDecompRes, reverse: reverseRes, condF: condFRes, huber: huberRes };
 
   renderResults();
   renderScatter();
   renderForest();
   renderFunnel();
   renderLOO();
+  renderRadial();
+  renderClusters();
   renderAdvanced();
   showTab('results');
 }
@@ -1198,6 +1804,8 @@ function renderResults() {
   if (r.raps) methods.push(r.raps);
   if (r.mode) methods.push(r.mode);
   if (r.contMix) methods.push(r.contMix);
+  if (r.radial) methods.push({ method: 'Radial IVW', beta: r.radial.ivw.beta, se: r.radial.ivw.se, ci: r.radial.ivw.ci, p: r.radial.ivw.p });
+  if (r.huber) methods.push(r.huber);
 
   const tbody = document.querySelector('#methodTable tbody');
   tbody.innerHTML = methods.map(m => {
@@ -1222,7 +1830,11 @@ function renderResults() {
     { test: 'Min F-statistic', stat: r.fStats.min.toFixed(1), p: '-', interp: r.fStats.min < 10 ? 'Some weak instruments present' : 'All instruments adequate' },
     { test: 'I\u00B2_GX (Egger strength)', stat: `${r.i2gx.I2_GX.toFixed(1)}% (Q=${r.i2gx.Q_GX.toFixed(2)})`, p: '-', interp: r.i2gx.interp },
     { test: 'Steiger directionality', stat: `\u03A3\u03C7\u00B2_X=${r.steiger.sumR2X.toFixed(1)}, \u03A3\u03C7\u00B2_Y=${r.steiger.sumR2Y.toFixed(1)}`, p: r.steiger.pVal.toFixed(4), interp: r.steiger.interp },
-    { test: 'IVW prediction interval', stat: r.predInt ? `${formatEst(r.predInt.pi[0], isLog)} to ${formatEst(r.predInt.pi[1], isLog)}` : 'N/A', p: '-', interp: r.predInt ? r.predInt.interp : 'Requires k\u22653' }
+    { test: 'IVW prediction interval', stat: r.predInt ? `${formatEst(r.predInt.pi[0], isLog)} to ${formatEst(r.predInt.pi[1], isLog)}` : 'N/A', p: '-', interp: r.predInt ? r.predInt.interp : 'Requires k\u22653' },
+    { test: 'Radial Q (modified Cochran)', stat: r.radial ? `Q=${r.radial.ivw.Q.toFixed(2)}, ${r.radial.nOutliers} outlier(s)` : 'N/A', p: r.radial ? r.radial.ivw.Qp : '-', interp: r.radial ? (r.radial.ivw.Qp < 0.05 ? 'Significant heterogeneity in radial space' : 'No significant radial heterogeneity') : 'N/A' },
+    { test: 'Q decomposition (balanced)', stat: r.qDecomp ? `Q_bal=${r.qDecomp.Q_balanced.toFixed(2)}, Q_unbal=${r.qDecomp.Q_unbalanced.toFixed(2)}` : 'N/A', p: r.qDecomp ? r.qDecomp.p_unbalanced : '-', interp: r.qDecomp ? r.qDecomp.recommendation : 'N/A' },
+    { test: 'Reverse MR (bidirectional)', stat: r.reverse ? `Forward \u03B2=${r.reverse.forward.beta.toFixed(4)}, Reverse \u03B2=${r.reverse.reverse.beta.toFixed(4)}` : 'N/A', p: r.reverse ? r.reverse.reverse.p : '-', interp: r.reverse ? r.reverse.interpretation : 'N/A' },
+    { test: 'Conditional F-statistic', stat: r.condF ? `F_cond=${r.condF.F_conditional.toFixed(1)} (R\u00B2_pleio=${(r.condF.R2_pleiotropy*100).toFixed(1)}%)` : 'N/A', p: '-', interp: r.condF ? r.condF.interpretation : 'N/A' }
   ];
   document.querySelector('#diagTable tbody').innerHTML = diags.map(d => {
     const cls = typeof d.p === 'number' ? (d.p < 0.05 ? 'badge-red' : 'badge-green') : '';
@@ -1673,6 +2285,364 @@ function renderAdvanced() {
       <em>Result:</em> ${r.predInt ? formatEst(r.predInt.pi[0], isLog) + ' to ' + formatEst(r.predInt.pi[1], isLog) : 'N/A'}
     </div>
   `;
+
+  // --- Q Decomposition rendering ---
+  if (r.qDecomp) {
+    const qd = r.qDecomp;
+    const qDecompStats = document.getElementById('qDecompStats');
+    const ratPct = (qd.ratio * 100).toFixed(1);
+    const dirBadge2 = qd.p_unbalanced < 0.05 ? '<span class="badge badge-red">Directional</span>' : '<span class="badge badge-green">No directional</span>';
+    qDecompStats.innerHTML = `
+      <div class="stat-box"><div class="value">${qd.Q_total.toFixed(2)}</div><div class="label">Q total (df=${qd.k-1})</div></div>
+      <div class="stat-box"><div class="value">${qd.Q_balanced.toFixed(2)}</div><div class="label">Q balanced (df=${qd.df_balanced})</div></div>
+      <div class="stat-box"><div class="value">${qd.Q_unbalanced.toFixed(2)}</div><div class="label">Q unbalanced (df=1) ${dirBadge2}</div></div>
+      <div class="stat-box"><div class="value">${ratPct}%</div><div class="label">Directional fraction</div></div>
+    `;
+    const qRows = [
+      { comp: 'Q total', q: qd.Q_total, df: qd.k - 1, p: qd.p_total, interp: qd.p_total < 0.05 ? 'Significant overall heterogeneity' : 'No significant heterogeneity' },
+      { comp: 'Q balanced (non-directional)', q: qd.Q_balanced, df: qd.df_balanced, p: qd.p_balanced, interp: qd.p_balanced < 0.05 ? 'Significant non-directional heterogeneity (RE-IVW appropriate)' : 'Non-directional component not significant' },
+      { comp: 'Q unbalanced (directional)', q: qd.Q_unbalanced, df: 1, p: qd.p_unbalanced, interp: qd.p_unbalanced < 0.05 ? 'Directional pleiotropy biasing IVW estimate' : 'No significant directional pleiotropy' }
+    ];
+    document.querySelector('#qDecompTable tbody').innerHTML = qRows.map(qr => {
+      const cls = qr.p < 0.05 ? 'badge-red' : 'badge-green';
+      return '<tr><td><strong>' + qr.comp + '</strong></td><td>' + qr.q.toFixed(2) + '</td><td>' + qr.df + '</td><td>' + (qr.p < 0.001 ? qr.p.toExponential(2) : qr.p.toFixed(4)) + '</td><td><span class="badge ' + cls + '">' + qr.interp + '</span></td></tr>';
+    }).join('');
+  }
+
+  // --- Reverse MR rendering ---
+  if (r.reverse) {
+    const rv = r.reverse;
+    const exp = document.getElementById('exposureName').value;
+    const out = document.getElementById('outcomeName').value;
+    const fwdBadge = rv.forwardSig ? '<span class="badge badge-green">Significant</span>' : '<span class="badge badge-amber">Not significant</span>';
+    const revBadge = rv.reverseSig ? '<span class="badge badge-red">Significant</span>' : '<span class="badge badge-green">Not significant</span>';
+    const reverseMRStats = document.getElementById('reverseMRStats');
+    reverseMRStats.innerHTML = `
+      <div class="stat-box"><div class="value">${formatEst(rv.forward.beta, isLog)}</div><div class="label">Forward (${exp}\u2192${out}) ${fwdBadge}</div></div>
+      <div class="stat-box"><div class="value">${formatEst(rv.reverse.beta, isLog)}</div><div class="label">Reverse (${out}\u2192${exp}) ${revBadge}</div></div>
+      <div class="stat-box"><div class="value">${rv.forward.p < 0.001 ? rv.forward.p.toExponential(2) : rv.forward.p.toFixed(4)}</div><div class="label">Forward P</div></div>
+      <div class="stat-box"><div class="value">${rv.reverse.p < 0.001 ? rv.reverse.p.toExponential(2) : rv.reverse.p.toFixed(4)}</div><div class="label">Reverse P</div></div>
+    `;
+    const rvRows = [
+      { dir: 'Forward (' + exp + ' \u2192 ' + out + ')', beta: rv.forward.beta, se: rv.forward.se, ci: rv.forward.ci, p: rv.forward.p, interp: rv.forwardSig ? 'Significant causal effect in forward direction' : 'Not significant in forward direction' },
+      { dir: 'Reverse (' + out + ' \u2192 ' + exp + ')', beta: rv.reverse.beta, se: rv.reverse.se, ci: rv.reverse.ci, p: rv.reverse.p, interp: rv.reverseSig ? 'Significant in reverse direction — consider bidirectional/shared pathways' : 'Not significant in reverse direction' }
+    ];
+    document.querySelector('#reverseMRTable tbody').innerHTML = rvRows.map(rr => {
+      const cls = rr.p < 0.05 ? 'badge-green' : 'badge-amber';
+      return '<tr><td><strong>' + rr.dir + '</strong></td><td>' + formatEst(rr.beta, isLog) + '</td><td>' + rr.se.toFixed(4) + '</td><td>' + formatEst(rr.ci[0], isLog) + ' to ' + formatEst(rr.ci[1], isLog) + '</td><td>' + (rr.p < 0.001 ? rr.p.toExponential(2) : rr.p.toFixed(4)) + '</td><td><span class="badge ' + cls + '">' + rr.interp + '</span></td></tr>';
+    }).join('');
+  }
+
+  // --- Conditional F rendering ---
+  if (r.condF) {
+    const cf = r.condF;
+    const fBadge = cf.adequate ? '<span class="badge badge-green">ADEQUATE</span>' : '<span class="badge badge-red">WEAK</span>';
+    document.getElementById('condFStats').innerHTML = `
+      <div class="stat-box"><div class="value">${cf.meanF.toFixed(1)}</div><div class="label">Mean F (unconditional)</div></div>
+      <div class="stat-box"><div class="value">${cf.F_conditional.toFixed(1)}</div><div class="label">F conditional ${fBadge}</div></div>
+      <div class="stat-box"><div class="value">${(cf.R2_pleiotropy * 100).toFixed(1)}%</div><div class="label">R\u00B2 pleiotropy</div></div>
+    `;
+  }
+
+  // --- Huber IVW rendering ---
+  if (r.huber) {
+    const hb = r.huber;
+    const diffBadge = hb.diffPct > 10 ? '<span class="badge badge-amber">Notable</span>' : '<span class="badge badge-green">Minimal</span>';
+    document.getElementById('huberStats').innerHTML = `
+      <div class="stat-box"><div class="value">${formatEst(hb.beta, isLog)}</div><div class="label">Robust IVW ${isLog ? '(OR)' : ''}</div></div>
+      <div class="stat-box"><div class="value">${formatEst(hb.standard.beta, isLog)}</div><div class="label">Standard IVW ${isLog ? '(OR)' : ''}</div></div>
+      <div class="stat-box"><div class="value">${hb.nDownweighted}</div><div class="label">SNPs downweighted</div></div>
+      <div class="stat-box"><div class="value">${hb.diffPct.toFixed(1)}%</div><div class="label">Change from standard ${diffBadge}</div></div>
+    `;
+    const hRows = [
+      { method: 'Standard IVW', beta: hb.standard.beta, se: hb.standard.se, ci: hb.standard.ci, p: hb.standard.p, interp: 'Reference estimate (all weights equal)' },
+      { method: 'Outlier-Robust IVW (Huber k=1.345)', beta: hb.beta, se: hb.se, ci: hb.ci, p: hb.p, interp: hb.nDownweighted > 0 ? hb.nDownweighted + ' SNP(s) downweighted by Huber function' : 'No SNPs required downweighting' }
+    ];
+    document.querySelector('#huberTable tbody').innerHTML = hRows.map(hr => {
+      const sig = hr.p < 0.05;
+      return '<tr><td><strong>' + hr.method + '</strong></td><td>' + formatEst(hr.beta, isLog) + '</td><td>' + hr.se.toFixed(4) + '</td><td>' + formatEst(hr.ci[0], isLog) + ' to ' + formatEst(hr.ci[1], isLog) + '</td><td>' + (hr.p < 0.001 ? hr.p.toExponential(2) : hr.p.toFixed(4)) + '</td><td>' + (sig ? '<span class="badge badge-green">' : '<span class="badge badge-amber">') + hr.interp + '</span></td></tr>';
+    }).join('');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// RADIAL PLOT RENDERING
+// ═══════════════════════════════════════════════════════
+
+function renderRadial() {
+  const r = lastResults;
+  if (!r || !r.radial) return;
+  const rad = r.radial;
+  const scale = document.getElementById('effectScale').value;
+  const isLog = scale === 'log' || scale === 'logRR';
+
+  // Summary stats
+  const radStats = document.getElementById('radialSummaryStats');
+  const outBadge = rad.nOutliers > 0 ? '<span class="badge badge-red">' + rad.nOutliers + ' outlier(s)</span>' : '<span class="badge badge-green">None</span>';
+  radStats.innerHTML = `
+    <div class="stat-box"><div class="value">${formatEst(rad.ivw.beta, isLog)}</div><div class="label">Radial IVW ${isLog ? '(OR)' : ''}</div></div>
+    <div class="stat-box"><div class="value">${formatEst(rad.egger.beta, isLog)}</div><div class="label">Radial MR-Egger ${isLog ? '(OR)' : ''}</div></div>
+    <div class="stat-box"><div class="value">${rad.ivw.Q.toFixed(2)}</div><div class="label">Q radial (IVW)</div></div>
+    <div class="stat-box"><div class="value">${rad.egger.Q.toFixed(2)}</div><div class="label">Q' (Rucker, Egger)</div></div>
+    <div class="stat-box"><div class="value">${rad.nOutliers}</div><div class="label">Outliers ${outBadge}</div></div>
+  `;
+
+  // Method table
+  const radMethods = [
+    { method: 'Radial IVW', beta: rad.ivw.beta, se: rad.ivw.se, ci: rad.ivw.ci, p: rad.ivw.p, q: 'Q=' + rad.ivw.Q.toFixed(2) + ', P=' + (rad.ivw.Qp < 0.001 ? rad.ivw.Qp.toExponential(2) : rad.ivw.Qp.toFixed(4)) },
+    { method: 'Radial MR-Egger', beta: rad.egger.beta, se: rad.egger.se, ci: rad.egger.ci, p: rad.egger.p, q: "Q'=" + rad.egger.Q.toFixed(2) + ', P=' + (rad.egger.Qp < 0.001 ? rad.egger.Qp.toExponential(2) : rad.egger.Qp.toFixed(4)) },
+    { method: 'Radial Egger intercept', beta: rad.egger.intercept, se: rad.egger.intercept_se, ci: [rad.egger.intercept - 1.96 * rad.egger.intercept_se, rad.egger.intercept + 1.96 * rad.egger.intercept_se], p: rad.egger.intercept_p, q: '-' }
+  ];
+  document.querySelector('#radialMethodTable tbody').innerHTML = radMethods.map(m => {
+    const sig = m.p < 0.05;
+    return '<tr><td><strong>' + m.method + '</strong></td><td>' + (m.method.includes('intercept') ? m.beta.toFixed(5) : formatEst(m.beta, isLog)) + '</td><td>' + m.se.toFixed(4) + '</td><td>' + (m.method.includes('intercept') ? m.ci[0].toFixed(5) + ' to ' + m.ci[1].toFixed(5) : formatEst(m.ci[0], isLog) + ' to ' + formatEst(m.ci[1], isLog)) + '</td><td>' + (m.p < 0.001 ? m.p.toExponential(2) : m.p.toFixed(4)) + '</td><td>' + m.q + '</td></tr>';
+  }).join('');
+
+  // Q contributions table
+  document.querySelector('#radialQTable tbody').innerHTML = rad.qContributions.map(q => {
+    const cls = q.outlier ? 'color:var(--red);font-weight:bold' : '';
+    return '<tr style="' + cls + '"><td>' + q.snp + '</td><td>' + q.x.toFixed(3) + '</td><td>' + q.y.toFixed(3) + '</td><td>' + q.qj.toFixed(3) + '</td><td>' + (q.pj < 0.001 ? q.pj.toExponential(2) : q.pj.toFixed(4)) + '</td><td>' + (q.outlier ? '<span class="badge badge-red">Yes</span>' : '<span class="badge badge-green">No</span>') + '</td></tr>';
+  }).join('');
+
+  // --- Radial Plot ---
+  const canvas = document.getElementById('radialCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { top: 40, right: 40, bottom: 60, left: 70 };
+  const pw = W - pad.left - pad.right, ph = H - pad.top - pad.bottom;
+
+  const xVals = rad.radialData.map(d => d.x);
+  const yVals = rad.radialData.map(d => d.y);
+  const xMin = 0;
+  const xMax = Math.max(...xVals) * 1.15;
+  const yMin2 = Math.min(...yVals, 0) * 1.15;
+  const yMax2 = Math.max(...yVals) * 1.15;
+
+  const xScale = v => pad.left + ((v - xMin) / (xMax - xMin)) * pw;
+  const yScale = v => pad.top + ph - ((v - yMin2) / (yMax2 - yMin2)) * ph;
+
+  // Grid
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + (ph / 5) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+    const v = yMax2 - (yMax2 - yMin2) * (i / 5);
+    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(v.toFixed(2), pad.left - 8, y + 4);
+  }
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.left + (pw / 5) * i;
+    ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, H - pad.bottom); ctx.stroke();
+    const v = xMin + (xMax - xMin) * (i / 5);
+    ctx.fillStyle = '#64748b'; ctx.textAlign = 'center';
+    ctx.fillText(v.toFixed(1), x, H - pad.bottom + 18);
+  }
+
+  // Zero line
+  if (yMin2 < 0 && yMax2 > 0) {
+    ctx.strokeStyle = '#475569'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.left, yScale(0)); ctx.lineTo(W - pad.right, yScale(0)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Radial IVW line (through origin)
+  ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 2; ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(xScale(0), yScale(0));
+  ctx.lineTo(xScale(xMax), yScale(rad.ivw.beta * xMax));
+  ctx.stroke();
+
+  // Radial Egger line (with intercept)
+  ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 2; ctx.setLineDash([6, 3]);
+  ctx.beginPath();
+  ctx.moveTo(xScale(0), yScale(rad.egger.intercept));
+  ctx.lineTo(xScale(xMax), yScale(rad.egger.intercept + rad.egger.beta * xMax));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Data points
+  for (const rd of rad.radialData) {
+    const x = xScale(rd.x), y = yScale(rd.y);
+    const isOut = rad.qContributions.find(q => q.snp === rd.snp && q.outlier);
+    ctx.beginPath(); ctx.arc(x, y, isOut ? 7 : 5, 0, Math.PI * 2);
+    ctx.fillStyle = isOut ? '#ef4444' : '#e2e8f0';
+    ctx.fill();
+    ctx.strokeStyle = isOut ? '#dc2626' : '#94a3b8'; ctx.lineWidth = 1.5; ctx.stroke();
+    if (isOut) {
+      ctx.fillStyle = '#ef4444'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(rd.snp, x + 10, y - 5);
+    }
+  }
+
+  // Legend
+  let ly = pad.top + 10;
+  ctx.fillStyle = '#6366f1'; ctx.fillRect(W - pad.right - 140, ly, 20, 3);
+  ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('Radial IVW', W - pad.right - 115, ly + 5);
+  ly += 18;
+  ctx.fillStyle = '#06b6d4'; ctx.fillRect(W - pad.right - 140, ly, 20, 3);
+  ctx.fillText('Radial Egger', W - pad.right - 115, ly + 5);
+  ly += 18;
+  ctx.beginPath(); ctx.arc(W - pad.right - 130, ly, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#ef4444'; ctx.fill();
+  ctx.fillText('Outlier', W - pad.right - 115, ly + 4);
+
+  // Axis labels
+  ctx.fillStyle = '#94a3b8'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('X = \u221Aw (radial coordinate)', pad.left + pw / 2, H - 10);
+  ctx.save(); ctx.translate(16, pad.top + ph / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Y = (betaY/betaX) \u00D7 \u221Aw', 0, 0);
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════
+// MR-CLUST RENDERING
+// ═══════════════════════════════════════════════════════
+
+function renderClusters() {
+  const r = lastResults;
+  if (!r || !r.clust) return;
+  const cl = r.clust;
+  const data = r.data;
+  const scale = document.getElementById('effectScale').value;
+  const isLog = scale === 'log' || scale === 'logRR';
+
+  const clusterColors = ['#6366f1', '#22c55e', '#f59e0b', '#06b6d4'];
+  const junkColor = '#ef4444';
+
+  // Summary stats
+  const clustStats = document.getElementById('clustSummaryStats');
+  const junkBadge = cl.nJunk > 0 ? '<span class="badge badge-red">' + cl.nJunk + ' junk</span>' : '<span class="badge badge-green">None</span>';
+  clustStats.innerHTML = `
+    <div class="stat-box"><div class="value">${cl.bestK}</div><div class="label">Optimal clusters (BIC)</div></div>
+    <div class="stat-box"><div class="value">${cl.bic.toFixed(1)}</div><div class="label">BIC</div></div>
+    <div class="stat-box"><div class="value">${cl.nJunk}</div><div class="label">Junk instruments ${junkBadge}</div></div>
+    <div class="stat-box"><div class="value">${cl.k - cl.nJunk}</div><div class="label">Clustered instruments</div></div>
+  `;
+
+  // Cluster assignments table
+  document.querySelector('#clusterTable tbody').innerHTML = data.map((d, i) => {
+    const ratio = cl.ratios[i];
+    const se = cl.seRatios[i];
+    const assignment = cl.assignments[i];
+    const clusterLabel = assignment === -1 ? '<span style="color:' + junkColor + '">Junk</span>' : '<span style="color:' + clusterColors[assignment % clusterColors.length] + '">Cluster ' + (assignment + 1) + '</span>';
+    const clEst = assignment >= 0 ? cl.clusters.find(c => c.cluster === assignment + 1) : null;
+    return '<tr><td>' + d.snp + '</td><td>' + formatEst(ratio, isLog) + '</td><td>' + se.toFixed(4) + '</td><td>' + clusterLabel + '</td><td>' + (clEst ? formatEst(clEst.beta, isLog) : '-') + '</td></tr>';
+  }).join('');
+
+  // Cluster-specific estimates table
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  let clEstHTML = cl.clusters.map(c => {
+    return '<tr><td style="color:' + clusterColors[(c.cluster - 1) % clusterColors.length] + '"><strong>Cluster ' + c.cluster + '</strong></td><td>' + c.n + '</td><td>' + formatEst(c.beta, isLog) + '</td><td>' + c.se.toFixed(4) + '</td><td>' + formatEst(c.ci[0], isLog) + ' to ' + formatEst(c.ci[1], isLog) + '</td><td>Potential causal mechanism</td></tr>';
+  }).join('');
+  if (cl.nJunk > 0) {
+    clEstHTML += '<tr><td style="color:' + junkColor + '"><strong>Junk</strong></td><td>' + cl.nJunk + '</td><td>-</td><td>-</td><td>-</td><td>Outlier instruments (|z| > 3)</td></tr>';
+  }
+  document.querySelector('#clusterEstTable tbody').innerHTML = clEstHTML;
+
+  // --- Cluster Scatter Plot ---
+  const canvas = document.getElementById('clusterCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { top: 40, right: 40, bottom: 60, left: 70 };
+  const pw2 = W - pad.left - pad.right, ph2 = H - pad.top - pad.bottom;
+
+  const bxMax = Math.max(...data.map(d => d.bx + d.sex)) * 1.1;
+  const byAll = data.flatMap(d => [d.by + d.sey, d.by - d.sey]);
+  const byMin = Math.min(...byAll, 0) * 1.1;
+  const byMax = Math.max(...byAll) * 1.1;
+
+  const xScale = v => pad.left + (v / bxMax) * pw2;
+  const yScale = v => pad.top + ph2 - ((v - byMin) / (byMax - byMin)) * ph2;
+
+  // Grid
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + (ph2 / 5) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+    const v = byMax - (byMax - byMin) * (i / 5);
+    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(v.toFixed(3), pad.left - 8, y + 4);
+  }
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.left + (pw2 / 5) * i;
+    ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, H - pad.bottom); ctx.stroke();
+    const v = (bxMax / 5) * i;
+    ctx.fillStyle = '#64748b'; ctx.textAlign = 'center';
+    ctx.fillText(v.toFixed(3), x, H - pad.bottom + 18);
+  }
+
+  // Zero line
+  if (byMin < 0 && byMax > 0) {
+    ctx.strokeStyle = '#475569'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.left, yScale(0)); ctx.lineTo(W - pad.right, yScale(0)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Cluster lines (through origin with cluster-specific slope)
+  for (const c of cl.clusters) {
+    const color = clusterColors[(c.cluster - 1) % clusterColors.length];
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(xScale(0), yScale(0));
+    ctx.lineTo(xScale(bxMax), yScale(c.beta * bxMax));
+    ctx.stroke();
+  }
+
+  // Data points colored by cluster
+  for (let i = 0; i < data.length; i++) {
+    const d = data[i];
+    const x = xScale(d.bx), y = yScale(d.by);
+    const assignment = cl.assignments[i];
+    const color = assignment === -1 ? junkColor : clusterColors[assignment % clusterColors.length];
+
+    // Error bars
+    ctx.strokeStyle = 'rgba(148,163,184,0.3)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, yScale(d.by - d.sey)); ctx.lineTo(x, yScale(d.by + d.sey)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(xScale(d.bx - d.sex), y); ctx.lineTo(xScale(d.bx + d.sex), y); ctx.stroke();
+
+    // Point
+    ctx.beginPath();
+    if (assignment === -1) {
+      // Junk: X shape
+      ctx.moveTo(x - 5, y - 5); ctx.lineTo(x + 5, y + 5);
+      ctx.moveTo(x + 5, y - 5); ctx.lineTo(x - 5, y + 5);
+      ctx.strokeStyle = junkColor; ctx.lineWidth = 2.5; ctx.stroke();
+    } else {
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+  }
+
+  // Legend
+  let ly2 = pad.top + 10;
+  for (const c of cl.clusters) {
+    const color = clusterColors[(c.cluster - 1) % clusterColors.length];
+    ctx.fillStyle = color; ctx.font = 'bold 11px sans-serif';
+    ctx.fillRect(W - pad.right - 140, ly2, 20, 3);
+    ctx.textAlign = 'left';
+    ctx.fillText('Cluster ' + c.cluster + ' (\u03B2=' + c.beta.toFixed(3) + ')', W - pad.right - 115, ly2 + 5);
+    ly2 += 18;
+  }
+  if (cl.nJunk > 0) {
+    ctx.strokeStyle = junkColor; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(W - pad.right - 135, ly2 - 5); ctx.lineTo(W - pad.right - 125, ly2 + 5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W - pad.right - 125, ly2 - 5); ctx.lineTo(W - pad.right - 135, ly2 + 5); ctx.stroke();
+    ctx.fillStyle = junkColor; ctx.font = 'bold 11px sans-serif';
+    ctx.fillText('Junk (' + cl.nJunk + ')', W - pad.right - 115, ly2 + 5);
+  }
+
+  // Axis labels
+  ctx.fillStyle = '#94a3b8'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('SNP\u2013' + document.getElementById('exposureName').value + ' association (\u03B2_X)', pad.left + pw2 / 2, H - 10);
+  ctx.save(); ctx.translate(16, pad.top + ph2 / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText('SNP\u2013' + document.getElementById('outcomeName').value + ' association (\u03B2_Y)', 0, 0);
+  ctx.restore();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1810,7 +2780,11 @@ function exportCSV() {
     { n: 'Simple_Median', ...r.smed },
     { n: 'MR_RAPS', ...r.raps },
     { n: 'Mode_based', ...r.mode },
-    { n: 'Contamination_Mixture', ...r.contMix }
+    { n: 'Contamination_Mixture', ...r.contMix },
+    { n: 'Radial_IVW', beta: r.radial.ivw.beta, se: r.radial.ivw.se, ci: r.radial.ivw.ci, p: r.radial.ivw.p },
+    { n: 'Radial_MR_Egger', beta: r.radial.egger.beta, se: r.radial.egger.se, ci: r.radial.egger.ci, p: r.radial.egger.p },
+    { n: 'Outlier_Robust_IVW', ...r.huber },
+    { n: 'Reverse_MR', beta: r.reverse.reverse.beta, se: r.reverse.reverse.se, ci: r.reverse.reverse.ci, p: r.reverse.reverse.p }
   ];
   for (const m of methods) {
     csv += `${m.n},${m.beta},${m.se},${m.ci[0]},${m.ci[1]},${m.p}\n`;
@@ -1822,6 +2796,15 @@ function exportCSV() {
   csv += `CM_valid_instruments,${r.contMix.nValid}\nCM_proportion_valid,${r.contMix.proportionValid}\n`;
   if (r.predInt) {
     csv += `Prediction_interval_lower,${r.predInt.pi[0]}\nPrediction_interval_upper,${r.predInt.pi[1]}\nPrediction_tau2,${r.predInt.tau2}\n`;
+  }
+  csv += `\nRadial_MR\nRadial_Q_IVW,${r.radial.ivw.Q}\nRadial_Q_IVW_P,${r.radial.ivw.Qp}\nRadial_Q_Egger,${r.radial.egger.Q}\nRadial_outliers,${r.radial.nOutliers}\nRadial_Egger_intercept,${r.radial.egger.intercept}\nRadial_Egger_intercept_P,${r.radial.egger.intercept_p}\n`;
+  csv += `\nQ_Decomposition\nQ_total,${r.qDecomp.Q_total}\nQ_balanced,${r.qDecomp.Q_balanced}\nQ_unbalanced,${r.qDecomp.Q_unbalanced}\nQ_unbalanced_P,${r.qDecomp.p_unbalanced}\nDirectional_fraction,${r.qDecomp.ratio}\n`;
+  csv += `\nReverse_MR\nForward_beta,${r.reverse.forward.beta}\nForward_P,${r.reverse.forward.p}\nReverse_beta,${r.reverse.reverse.beta}\nReverse_P,${r.reverse.reverse.p}\n`;
+  csv += `\nConditional_F\nF_overall,${r.condF.meanF}\nF_conditional,${r.condF.F_conditional}\nR2_pleiotropy,${r.condF.R2_pleiotropy}\n`;
+  csv += `\nOutlier_Robust_IVW\nHuber_beta,${r.huber.beta}\nHuber_SE,${r.huber.se}\nHuber_P,${r.huber.p}\nN_downweighted,${r.huber.nDownweighted}\nChange_pct,${r.huber.diffPct}\n`;
+  if (r.clust) {
+    csv += `\nMR_Clust\nOptimal_K,${r.clust.bestK}\nBIC,${r.clust.bic}\nN_junk,${r.clust.nJunk}\n`;
+    r.clust.clusters.forEach(c => { csv += `Cluster_${c.cluster}_beta,${c.beta}\nCluster_${c.cluster}_SE,${c.se}\nCluster_${c.cluster}_N,${c.n}\n`; });
   }
   downloadText(csv, 'mr_results.csv');
 }
@@ -1853,6 +2836,30 @@ function exportReport() {
   }
   if (r.presso.outliers.length > 0) {
     txt += `PRESSO outliers: ${r.presso.outliers.map(o=>o.snp).join(', ')}\n`;
+  }
+  txt += `\nRadial MR\n${'─'.repeat(30)}\n`;
+  txt += `Radial IVW: \u03B2=${r.radial.ivw.beta.toFixed(4)}, SE=${r.radial.ivw.se.toFixed(4)}, P=${r.radial.ivw.p.toExponential(3)}\n`;
+  txt += `Radial MR-Egger: \u03B2=${r.radial.egger.beta.toFixed(4)}, SE=${r.radial.egger.se.toFixed(4)}, P=${r.radial.egger.p.toExponential(3)}\n`;
+  txt += `Radial Egger intercept: ${r.radial.egger.intercept.toFixed(5)}, P=${r.radial.egger.intercept_p.toFixed(4)}\n`;
+  txt += `Radial Q (IVW): ${r.radial.ivw.Q.toFixed(2)}, P=${r.radial.ivw.Qp.toFixed(4)}, outliers=${r.radial.nOutliers}\n`;
+  txt += `\nQ Decomposition\n${'─'.repeat(30)}\n`;
+  txt += `Q_total=${r.qDecomp.Q_total.toFixed(2)}, Q_balanced=${r.qDecomp.Q_balanced.toFixed(2)}, Q_unbalanced=${r.qDecomp.Q_unbalanced.toFixed(2)}\n`;
+  txt += `Directional fraction: ${(r.qDecomp.ratio*100).toFixed(1)}%\n`;
+  txt += `${r.qDecomp.recommendation}\n`;
+  txt += `\nReverse MR\n${'─'.repeat(30)}\n`;
+  txt += `Forward: \u03B2=${r.reverse.forward.beta.toFixed(4)}, P=${r.reverse.forward.p.toExponential(3)}\n`;
+  txt += `Reverse: \u03B2=${r.reverse.reverse.beta.toFixed(4)}, P=${r.reverse.reverse.p.toExponential(3)}\n`;
+  txt += `${r.reverse.interpretation}\n`;
+  txt += `\nConditional F\n${'─'.repeat(30)}\n`;
+  txt += `F_overall=${r.condF.meanF.toFixed(1)}, F_conditional=${r.condF.F_conditional.toFixed(1)}, R\u00B2_pleiotropy=${(r.condF.R2_pleiotropy*100).toFixed(1)}%\n`;
+  txt += `${r.condF.interpretation}\n`;
+  txt += `\nOutlier-Robust IVW (Huber)\n${'─'.repeat(30)}\n`;
+  txt += `Robust \u03B2=${r.huber.beta.toFixed(4)}, SE=${r.huber.se.toFixed(4)}, P=${r.huber.p.toExponential(3)}\n`;
+  txt += `SNPs downweighted: ${r.huber.nDownweighted}, change from standard: ${r.huber.diffPct.toFixed(1)}%\n`;
+  if (r.clust) {
+    txt += `\nMR-Clust\n${'─'.repeat(30)}\n`;
+    txt += `Optimal clusters: ${r.clust.bestK} (BIC=${r.clust.bic.toFixed(1)}), junk instruments: ${r.clust.nJunk}\n`;
+    r.clust.clusters.forEach(c => { txt += `  Cluster ${c.cluster}: \u03B2=${c.beta.toFixed(4)}, SE=${c.se.toFixed(4)}, n=${c.n}\n`; });
   }
   downloadText(txt, 'mr_report.txt');
 }
