@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MendelianMR — Browser Mendelian Randomization Analysis</title>
-<meta name="description" content="Mendelian Randomization analysis tool: IVW, MR-Egger, Weighted Median, MR-PRESSO, MR-RAPS, Mode-based, Contamination Mixture. Offline-first, no server required.">
+<meta name="description" content="Mendelian Randomization analysis tool: 23 methods including IVW, MR-Egger, Weighted Median, MR-PRESSO, MR-RAPS, MR-Lasso, Anderson-Rubin, Fieller, Model Averaging, Sargan, MR-PEN. Offline-first, no server required.">
 <meta property="og:title" content="MendelianMR — Mendelian Randomization Analysis">
 <meta property="og:description" content="Browser-based MR causal inference tool with IVW, MR-Egger, Weighted Median, MR-PRESSO, MR-RAPS, Mode-based, Contamination Mixture, Steiger directionality, and comprehensive diagnostics.">
 <style>
@@ -83,7 +83,7 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
 <div class="container">
 <header>
   <h1>MendelianMR</h1>
-  <p>Browser-based Mendelian Randomization analysis — IVW, MR-Egger, Weighted Median, MR-PRESSO, MR-RAPS, Mode-based, Contamination Mixture, Radial MR, MR-Clust</p>
+  <p>Browser-based Mendelian Randomization analysis — 23 methods including IVW, MR-Egger, Weighted Median, MR-PRESSO, MR-RAPS, MR-Lasso, Anderson-Rubin, Fieller, Model Averaging, Sargan, MR-PEN</p>
 </header>
 
 <div class="tabs">
@@ -96,6 +96,7 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
   <div class="tab" onclick="showTab('radial')">Radial</div>
   <div class="tab" onclick="showTab('clusters')">Clusters</div>
   <div class="tab" onclick="showTab('advanced')">Advanced</div>
+  <div class="tab" onclick="showTab('weakiv')">Weak Instruments</div>
   <div class="tab" onclick="showTab('guide')">Guide</div>
 </div>
 
@@ -179,6 +180,17 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
   <div class="card">
     <h3>MR-PRESSO Results</h3>
     <div id="pressoResults"></div>
+  </div>
+  <div class="card">
+    <h3>Heterogeneity-Penalized Model Averaging (Burgess et al. 2020)</h3>
+    <div class="info-box">
+      Weights IVW, MR-Egger, weighted median, and mode-based estimates by their heterogeneity Q: w<sub>method</sub> = exp(&minus;Q/2) / &sum;exp(&minus;Q<sub>j</sub>/2). Methods with lower heterogeneity receive more weight. More robust than choosing a single method.
+    </div>
+    <div id="modelAvgStats" class="stat-grid" style="margin-bottom:16px"></div>
+    <table id="modelAvgTable">
+      <thead><tr><th>Method</th><th>Estimate</th><th>Q statistic</th><th>Weight</th></tr></thead>
+      <tbody></tbody>
+    </table>
   </div>
   <div class="card">
     <h3>Individual Wald Ratios</h3>
@@ -371,8 +383,84 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
     </table>
   </div>
   <div class="card">
+    <h3>MR-Lasso (Rees et al. 2019, Stat Med)</h3>
+    <div class="info-box">
+      L1-penalized regression that simultaneously estimates the causal effect (&beta;) and SNP-specific pleiotropy parameters (&gamma;<sub>j</sub>). Instruments with &gamma;<sub>j</sub> = 0 are classified as valid (no detectable pleiotropy). The penalty &lambda; is chosen by BIC. Soft-thresholding via coordinate descent.
+    </div>
+    <div id="lassoStats" class="stat-grid" style="margin-bottom:16px"></div>
+    <table id="lassoTable">
+      <thead><tr><th>SNP</th><th>Wald Ratio</th><th>&gamma;<sub>j</sub> (pleiotropy)</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Sargan/Hansen Overidentification Test</h3>
+    <div class="info-box">
+      Under the null of all instruments being valid, Q ~ &chi;&sup2;(k &minus; 1). Sequential removal drops the SNP with the largest Q contribution until the Sargan P &gt; 0.05, identifying a valid instrument subset.
+    </div>
+    <div id="sarganStats" class="stat-grid" style="margin-bottom:16px"></div>
+    <table id="sarganTable">
+      <thead><tr><th>Step</th><th>Removed SNP</th><th>Q Contribution</th><th>Remaining k</th><th>Sargan Q</th><th>Sargan P</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Pleiotropy-Robust Penalized IVW (MR-PEN)</h3>
+    <div class="info-box">
+      Penalizes the IVW objective with adaptive Lasso weights: w<sub>pen,j</sub> = 1/|residual<sub>j</sub>|<sup>&gamma;</sup>. Downweights SNPs with large residuals more aggressively than Huber, specifically targeting pleiotropy. More principled than simple outlier removal.
+    </div>
+    <div id="mrpenStats" class="stat-grid" style="margin-bottom:16px"></div>
+    <table id="mrpenTable">
+      <thead><tr><th>Method</th><th>Estimate</th><th>SE</th><th>95% CI</th><th>P-value</th><th>Interpretation</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
     <h3>Method Details</h3>
     <div id="advDetails"></div>
+  </div>
+</div>
+
+<!-- WEAK INSTRUMENTS -->
+<div class="panel" id="panel-weakiv">
+  <div class="card">
+    <h3>Weak-Instrument Robust Inference</h3>
+    <div class="info-box">
+      Standard Wald-type CIs rely on strong instruments (F &gt; 10). When instruments are weak, the ratio estimator has a non-standard (Cauchy-like) distribution and standard CIs can be misleading. The Anderson-Rubin test and Fieller&rsquo;s theorem provide valid inference regardless of instrument strength.
+    </div>
+    <div id="weakivSummaryStats" class="stat-grid" style="margin-bottom:16px"></div>
+  </div>
+  <div class="card">
+    <h3>Anderson-Rubin Test (Weak-Instrument Robust CI)</h3>
+    <div class="info-box">
+      The AR statistic AR(&beta;) = &sum; w<sub>j</sub>(b<sub>Y,j</sub> &minus; &beta; b<sub>X,j</sub>)&sup2; follows &chi;&sup2;(k) under the null. Inverting this test yields a CI that is valid even when F &lt; 10. The CI is found by grid search: all &beta; values where AR(&beta;) &lt; &chi;&sup2;<sub>k,&alpha;</sub>.
+    </div>
+    <div id="arStats" class="stat-grid" style="margin-bottom:16px"></div>
+    <table id="arTable">
+      <thead><tr><th>Method</th><th>Estimate</th><th>95% CI</th><th>P-value</th><th>Interpretation</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Fieller&rsquo;s Theorem CI (Ratio Estimator)</h3>
+    <div class="info-box">
+      The Wald ratio &beta;<sub>Y</sub>/&beta;<sub>X</sub> has a non-standard distribution when &beta;<sub>X</sub> is imprecisely estimated. Fieller&rsquo;s theorem solves the quadratic: (&beta;<sub>Y</sub> &minus; &beta;&middot;&beta;<sub>X</sub>)&sup2; &le; z&sup2;<sub>&alpha;</sub>(SE&sup2;<sub>Y</sub> + &beta;&sup2;&middot;SE&sup2;<sub>X</sub>). This can yield bounded, unbounded, or empty CIs depending on instrument strength. For IVW: aggregated across instruments.
+    </div>
+    <div id="fiellerStats" class="stat-grid" style="margin-bottom:16px"></div>
+    <table id="fiellerTable">
+      <thead><tr><th>Method</th><th>CI Lower</th><th>CI Upper</th><th>Type</th><th>Interpretation</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Weak IV Method Comparison</h3>
+    <div class="info-box">
+      Comparison of standard IVW CI vs weak-instrument-robust CIs. When instruments are strong (F &gt; 10), all intervals should be similar. Discrepancies indicate that weak instruments may be distorting standard inference.
+    </div>
+    <table id="weakivCompareTable">
+      <thead><tr><th>Method</th><th>CI Lower</th><th>CI Upper</th><th>Width</th><th>Covers Null</th></tr></thead>
+      <tbody></tbody>
+    </table>
   </div>
 </div>
 
@@ -399,6 +487,12 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
       <tr><td><strong>Reverse MR</strong></td><td>Bidirectional test swapping exposure and outcome to check for reverse causation or shared pathways.</td></tr>
       <tr><td><strong>Conditional F</strong></td><td>Sanderson et al. 2019. Adjusts F-statistic for pleiotropy. F_cond > 10 for reliable inference.</td></tr>
       <tr><td><strong>Outlier-Robust IVW</strong></td><td>Penalized IVW using Huber weights (k=1.345) to downweight outlier SNPs iteratively.</td></tr>
+      <tr><td><strong>MR-Lasso</strong></td><td>Rees et al. 2019. L1-penalized regression estimating SNP-specific pleiotropy. Classifies instruments as valid (gamma=0) or pleiotropic. Lambda by BIC.</td></tr>
+      <tr><td><strong>Anderson-Rubin</strong></td><td>Weak-instrument robust CI by inverting the AR chi-squared test. Valid even when F &lt; 10, unlike standard Wald CIs.</td></tr>
+      <tr><td><strong>Fieller's theorem</strong></td><td>Solves the quadratic for the ratio estimator CI. Can yield bounded, unbounded, or empty CIs depending on instrument strength.</td></tr>
+      <tr><td><strong>Model Averaging</strong></td><td>Burgess et al. 2020. Weights IVW, Egger, median, mode by exp(-Q/2). More robust than choosing a single method.</td></tr>
+      <tr><td><strong>Sargan/Hansen</strong></td><td>Overidentification test. Sequential removal of worst-fitting SNP until Q passes. Identifies valid instrument subset.</td></tr>
+      <tr><td><strong>MR-PEN</strong></td><td>Pleiotropy-robust penalized IVW with adaptive Lasso weights targeting pleiotropic outliers more aggressively than Huber.</td></tr>
     </table>
     <h3 style="margin-top:16px">Key Assumptions</h3>
     <table>
@@ -417,7 +511,7 @@ footer { text-align: center; padding: 30px 0; color: var(--text2); font-size: 0.
 </div>
 
 <footer>
-  MendelianMR v3.0 — Mahmood Ahmad, Tahir Heart Institute — Offline-first, no data leaves your browser
+  MendelianMR v3.1 — Mahmood Ahmad, Tahir Heart Institute — 23 methods, offline-first, no data leaves your browser
 </footer>
 </div>
 
@@ -1694,6 +1788,572 @@ function outlierRobustIVW(data) {
 }
 
 // ═══════════════════════════════════════════════════════
+// NEW ADVANCED MR METHODS (v3.1)
+// ═══════════════════════════════════════════════════════
+
+function mrLasso(data) {
+  // MR-Lasso (Rees et al. 2019, Stat Med)
+  // L1-penalized regression: min sum(w_j * (by_j - beta*bx_j - gamma_j)^2) + lambda * sum(|gamma_j|)
+  // gamma_j are SNP-specific pleiotropy parameters; lambda chosen by BIC
+  // Coordinate descent with soft-thresholding
+  const k = data.length;
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha / 2);
+
+  // IVW weights
+  const weights = data.map(d => (d.bx * d.bx) / (d.sey * d.sey));
+
+  // Try a range of lambda values and select by BIC
+  // First, get IVW residuals for scale reference
+  const ivwRes = ivw(data);
+  const residuals = data.map(d => d.by - ivwRes.beta * d.bx);
+  const maxAbsResid = Math.max(...residuals.map((r, i) => Math.abs(r) * Math.sqrt(weights[i])));
+
+  // Estimate sigma^2 from IVW residuals for BIC denominator
+  let ivwRSS = 0;
+  for (let j = 0; j < k; j++) {
+    const resid = data[j].by - ivwRes.beta * data[j].bx;
+    ivwRSS += weights[j] * resid * resid;
+  }
+  const sigma2Hat = ivwRSS / (k - 1);
+
+  // Lambda grid: from max (all gamma=0) down to near-zero
+  const nLambda = 60;
+  const lambdaMax = maxAbsResid * 3;
+  let bestBIC = Infinity, bestBeta = ivwRes.beta, bestGamma = new Array(k).fill(0);
+  let bestLambda = lambdaMax;
+
+  for (let li = 0; li <= nLambda; li++) {
+    // Log-scale grid from lambdaMax to lambdaMax/1000
+    const frac = li / nLambda;
+    const lambda = lambdaMax * Math.pow(0.001, frac);
+
+    // Coordinate descent
+    let beta = ivwRes.beta;
+    const gamma = new Array(k).fill(0);
+
+    for (let iter = 0; iter < 100; iter++) {
+      const prevBeta = beta;
+
+      // Update beta (holding gamma fixed)
+      let num = 0, den = 0;
+      for (let j = 0; j < k; j++) {
+        num += weights[j] * data[j].bx * (data[j].by - gamma[j]);
+        den += weights[j] * data[j].bx * data[j].bx;
+      }
+      beta = den > 0 ? num / den : prevBeta;
+
+      // Update each gamma_j (soft-thresholding)
+      for (let j = 0; j < k; j++) {
+        const resid_j = data[j].by - beta * data[j].bx;
+        const threshold = lambda / (2 * weights[j]);
+        if (Math.abs(resid_j) <= threshold) {
+          gamma[j] = 0;
+        } else {
+          gamma[j] = resid_j - Math.sign(resid_j) * threshold;
+        }
+      }
+
+      if (Math.abs(beta - prevBeta) < 1e-10) break;
+    }
+
+    // Compute BIC: RSS/sigma^2 + nParams * log(k)
+    // Using Schwarz BIC for variable selection (RSS-based)
+    let rss = 0;
+    let nNonZero = 0;
+    for (let j = 0; j < k; j++) {
+      const resid = data[j].by - beta * data[j].bx - gamma[j];
+      rss += weights[j] * resid * resid;
+      if (Math.abs(gamma[j]) > 1e-12) nNonZero++;
+    }
+    const nParams = 1 + nNonZero; // beta + non-zero gammas
+    // Prevent over-fitting: nParams must be < k
+    const bic = (sigma2Hat > 0 ? rss / sigma2Hat : rss) + nParams * Math.log(k);
+
+    if (bic < bestBIC) {
+      bestBIC = bic;
+      bestBeta = beta;
+      bestGamma = gamma.slice();
+      bestLambda = lambda;
+    }
+  }
+
+  // Identify valid instruments (gamma = 0)
+  const validIdx = [];
+  const invalidIdx = [];
+  for (let j = 0; j < k; j++) {
+    if (Math.abs(bestGamma[j]) < 1e-12) {
+      validIdx.push(j);
+    } else {
+      invalidIdx.push(j);
+    }
+  }
+
+  // SE from valid instruments only (standard IVW)
+  let sumW = 0;
+  for (const i of validIdx) {
+    sumW += weights[i];
+  }
+  const se = sumW > 0 ? 1 / Math.sqrt(sumW) : Infinity;
+  const z = se < Infinity ? bestBeta / se : 0;
+  const p = 2 * (1 - normalCDF(Math.abs(z)));
+
+  return {
+    method: 'MR-Lasso',
+    beta: bestBeta, se: se,
+    ci: [bestBeta - zc * se, bestBeta + zc * se], p: p,
+    gamma: bestGamma,
+    lambda: bestLambda,
+    bic: bestBIC,
+    nValid: validIdx.length,
+    nInvalid: invalidIdx.length,
+    validIdx: validIdx,
+    invalidIdx: invalidIdx,
+    k: k
+  };
+}
+
+function andersonRubin(data) {
+  // Anderson-Rubin test: weak-instrument robust CI
+  // AR(beta) = sum(w_j * (by_j - beta*bx_j)^2) ~ chi-sq(k) under null
+  // Invert to get CI: find beta values where AR(beta) < chi-sq(k, alpha)
+  const k = data.length;
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha / 2);
+
+  // Compute AR statistic for a given beta
+  function arStat(beta) {
+    let ar = 0;
+    for (const d of data) {
+      const resid = d.by - beta * d.bx;
+      const w = 1 / (d.sey * d.sey);
+      ar += w * resid * resid;
+    }
+    return ar;
+  }
+
+  // Chi-squared critical value via inverse: find x where P(X > x) = alpha
+  // Use bisection on chiSqPValue
+  function chiSqQuantile(dfVal, pVal) {
+    let lo = 0, hi = dfVal * 10 + 50;
+    for (let i = 0; i < 100; i++) {
+      const mid = (lo + hi) / 2;
+      if (chiSqPValue(mid, dfVal) > pVal) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    return (lo + hi) / 2;
+  }
+
+  const critVal = chiSqQuantile(k, alpha);
+
+  // IVW estimate as center
+  const ivwRes = ivw(data);
+  const betaHat = ivwRes.beta;
+  const arAtHat = arStat(betaHat);
+  const arP = chiSqPValue(arAtHat, k);
+
+  // Grid search to find CI bounds
+  // Start wide and narrow down
+  const seIVW = ivwRes.se;
+  const searchWidth = Math.max(Math.abs(betaHat) * 5, seIVW * 20, 2);
+  const gridMin = betaHat - searchWidth;
+  const gridMax = betaHat + searchWidth;
+  const nGrid = 2000;
+  const step = (gridMax - gridMin) / nGrid;
+
+  let arCILo = null, arCIHi = null;
+
+  // Find first beta where AR < critVal (left bound)
+  for (let g = 0; g <= nGrid; g++) {
+    const b = gridMin + g * step;
+    if (arStat(b) < critVal) {
+      arCILo = b;
+      break;
+    }
+  }
+  // Find last beta where AR < critVal (right bound)
+  for (let g = nGrid; g >= 0; g--) {
+    const b = gridMin + g * step;
+    if (arStat(b) < critVal) {
+      arCIHi = b;
+      break;
+    }
+  }
+
+  // Refine bounds with bisection if found
+  if (arCILo !== null && arCILo > gridMin) {
+    let lo = arCILo - step, hi = arCILo;
+    for (let i = 0; i < 50; i++) {
+      const mid = (lo + hi) / 2;
+      if (arStat(mid) < critVal) hi = mid; else lo = mid;
+    }
+    arCILo = (lo + hi) / 2;
+  }
+  if (arCIHi !== null && arCIHi < gridMax) {
+    let lo = arCIHi, hi = arCIHi + step;
+    for (let i = 0; i < 50; i++) {
+      const mid = (lo + hi) / 2;
+      if (arStat(mid) < critVal) lo = mid; else hi = mid;
+    }
+    arCIHi = (lo + hi) / 2;
+  }
+
+  // Standard IVW CI for comparison
+  const ivwCILo = betaHat - zc * seIVW;
+  const ivwCIHi = betaHat + zc * seIVW;
+
+  const bounded = arCILo !== null && arCIHi !== null;
+  const coversNull = bounded ? (arCILo <= 0 && arCIHi >= 0) : true;
+
+  return {
+    method: 'Anderson-Rubin',
+    beta: betaHat,
+    arStat: arAtHat,
+    arP: arP,
+    arCI: bounded ? [arCILo, arCIHi] : null,
+    arCIBounded: bounded,
+    ivwCI: [ivwCILo, ivwCIHi],
+    critVal: critVal,
+    coversNull: coversNull,
+    interp: !bounded ? 'Unbounded CI — instruments too weak to identify the causal effect' :
+      (Math.abs((arCIHi - arCILo) - (ivwCIHi - ivwCILo)) / (ivwCIHi - ivwCILo) > 0.3)
+      ? 'AR CI substantially wider than IVW CI — weak instrument distortion likely'
+      : 'AR CI similar to IVW CI — standard inference appears reliable',
+    k: k
+  };
+}
+
+function fiellerCI(data) {
+  // Fieller's theorem CI for the IVW ratio estimator
+  // For each instrument: solve (by - beta*bx)^2 <= z^2 * (sey^2 + beta^2*sex^2)
+  // Aggregate across instruments for IVW-Fieller
+  const k = data.length;
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha / 2);
+  const z2 = zc * zc;
+
+  // IVW-Fieller: aggregate quadratic across instruments
+  // sum_j [ w_j * (by_j - beta*bx_j)^2 ] <= z^2 * sum_j [ w_j * (sey_j^2 + beta^2*sex_j^2) ]
+  // where w_j = 1/(sey_j^2) (first-order weights for simplicity)
+  // Rearranged: A*beta^2 - 2*B*beta + C <= 0
+  // A = sum(w_j * bx_j^2) - z^2 * sum(w_j * sex_j^2)
+  // B = sum(w_j * bx_j * by_j)
+  // C = sum(w_j * by_j^2) - z^2 * sum(w_j * sey_j^2)
+
+  let sumWbx2 = 0, sumWbxby = 0, sumWby2 = 0;
+  let sumWsex2 = 0, sumWsey2 = 0;
+  for (const d of data) {
+    const w = 1 / (d.sey * d.sey);
+    sumWbx2 += w * d.bx * d.bx;
+    sumWbxby += w * d.bx * d.by;
+    sumWby2 += w * d.by * d.by;
+    sumWsex2 += w * d.sex * d.sex;
+    sumWsey2 += w * d.sey * d.sey; // = k
+  }
+
+  const A = sumWbx2 - z2 * sumWsex2;
+  const B = sumWbxby;
+  const C = sumWby2 - z2 * sumWsey2;
+
+  const discriminant = B * B - A * C;
+
+  let ciLo, ciHi, ciType;
+
+  if (A <= 0) {
+    // Denominator not significant from zero → unbounded or empty CI
+    if (discriminant >= 0) {
+      ciType = 'unbounded';
+      ciLo = -Infinity;
+      ciHi = Infinity;
+    } else {
+      ciType = 'empty';
+      ciLo = NaN;
+      ciHi = NaN;
+    }
+  } else if (discriminant < 0) {
+    ciType = 'empty';
+    ciLo = NaN;
+    ciHi = NaN;
+  } else {
+    ciType = 'bounded';
+    const sqrtDisc = Math.sqrt(discriminant);
+    ciLo = (B - sqrtDisc) / A;
+    ciHi = (B + sqrtDisc) / A;
+  }
+
+  // Point estimate (standard IVW)
+  const betaHat = sumWbxby / sumWbx2;
+  const ivwSE = 1 / Math.sqrt(sumWbx2);
+
+  // Per-instrument Fieller CIs
+  const perSNP = data.map(d => {
+    const a = d.bx * d.bx - z2 * d.sex * d.sex;
+    const b = d.bx * d.by;
+    const c = d.by * d.by - z2 * d.sey * d.sey;
+    const disc = b * b - a * c;
+    if (a <= 0) return { snp: d.snp, type: 'unbounded', lo: -Infinity, hi: Infinity };
+    if (disc < 0) return { snp: d.snp, type: 'empty', lo: NaN, hi: NaN };
+    const sq = Math.sqrt(disc);
+    return { snp: d.snp, type: 'bounded', lo: (b - sq) / a, hi: (b + sq) / a };
+  });
+
+  const nUnbounded = perSNP.filter(s => s.type === 'unbounded').length;
+  const coversNull = ciType === 'bounded' ? (ciLo <= 0 && ciHi >= 0) : ciType === 'unbounded';
+
+  return {
+    method: 'Fieller',
+    beta: betaHat,
+    ci: ciType === 'bounded' ? [ciLo, ciHi] : null,
+    ciType: ciType,
+    A: A, B: B, C: C,
+    discriminant: discriminant,
+    perSNP: perSNP,
+    nUnbounded: nUnbounded,
+    coversNull: coversNull,
+    interp: ciType === 'unbounded' ? 'Unbounded CI — instruments too weak (aggregate bx not significantly different from zero)' :
+            ciType === 'empty' ? 'Empty CI — unusual, may indicate model misspecification' :
+            (Math.abs(ciHi - ciLo) > 10 * Math.abs(2 * zc * ivwSE)) ? 'Fieller CI much wider than Wald CI — weak instrument distortion' :
+            'Fieller CI is well-behaved — instrument strength appears adequate',
+    k: k
+  };
+}
+
+function heterogeneityModelAveraging(data, ivwRes, eggerRes, wmedRes, modeRes) {
+  // Heterogeneity-penalized model averaging (Burgess et al. 2020)
+  // Weight methods by exp(-Q/2) where Q measures heterogeneity for that method
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha / 2);
+  const k = data.length;
+
+  // Compute Q for each method:
+  // IVW Q: already available
+  const Q_ivw = ivwRes.Q;
+
+  // Egger Q: residuals around Egger line
+  const Q_egger = eggerRes.Q;
+
+  // Weighted median Q: sum of squared deviations from the median estimate
+  let Q_wmed = 0;
+  for (const d of data) {
+    const w = (d.bx * d.bx) / (d.sey * d.sey);
+    const ratio = d.by / d.bx;
+    Q_wmed += w * (ratio - wmedRes.beta) * (ratio - wmedRes.beta);
+  }
+
+  // Mode-based Q: similarly
+  let Q_mode = 0;
+  for (const d of data) {
+    const w = (d.bx * d.bx) / (d.sey * d.sey);
+    const ratio = d.by / d.bx;
+    Q_mode += w * (ratio - modeRes.beta) * (ratio - modeRes.beta);
+  }
+
+  const methods = [
+    { name: 'IVW', beta: ivwRes.beta, se: ivwRes.se, Q: Q_ivw },
+    { name: 'MR-Egger', beta: eggerRes.beta, se: eggerRes.se, Q: Q_egger },
+    { name: 'Weighted Median', beta: wmedRes.beta, se: wmedRes.se, Q: Q_wmed },
+    { name: 'Mode-based', beta: modeRes.beta, se: modeRes.se, Q: Q_mode }
+  ];
+
+  // Compute weights: w = exp(-Q/2) / sum(exp(-Q/2))
+  // Use log-sum-exp for numerical stability
+  const logWeightsRaw = methods.map(m => -m.Q / 2);
+  const maxLogW = Math.max(...logWeightsRaw);
+  const expWeights = logWeightsRaw.map(lw => Math.exp(lw - maxLogW));
+  const sumExpW = expWeights.reduce((a, b) => a + b, 0);
+  const normWeights = expWeights.map(w => w / sumExpW);
+
+  // Model-averaged estimate
+  let betaMA = 0;
+  for (let i = 0; i < methods.length; i++) {
+    betaMA += normWeights[i] * methods[i].beta;
+    methods[i].weight = normWeights[i];
+  }
+
+  // SE via delta method: sqrt( sum(w_i^2 * se_i^2) + sum(w_i * (beta_i - betaMA)^2) )
+  let varComponent1 = 0, varComponent2 = 0;
+  for (let i = 0; i < methods.length; i++) {
+    varComponent1 += normWeights[i] * normWeights[i] * methods[i].se * methods[i].se;
+    varComponent2 += normWeights[i] * (methods[i].beta - betaMA) * (methods[i].beta - betaMA);
+  }
+  const seMA = Math.sqrt(varComponent1 + varComponent2);
+  const z = betaMA / seMA;
+  const p = 2 * (1 - normalCDF(Math.abs(z)));
+
+  return {
+    method: 'Model Averaged',
+    beta: betaMA, se: seMA,
+    ci: [betaMA - zc * seMA, betaMA + zc * seMA], p: p,
+    components: methods,
+    k: k
+  };
+}
+
+function sarganTest(data) {
+  // Sargan/Hansen overidentification test with sequential removal
+  // Q ~ chi-sq(k-1) under null of all instruments being valid
+  const k = data.length;
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha / 2);
+
+  function computeIVWandQ(subset) {
+    let sumW = 0, sumWR = 0;
+    for (const d of subset) {
+      const w = (d.bx * d.bx) / (d.sey * d.sey);
+      sumW += w;
+      sumWR += w * (d.by / d.bx);
+    }
+    const beta = sumWR / sumW;
+    const se = 1 / Math.sqrt(sumW);
+    let Q = 0;
+    const qContribs = [];
+    for (const d of subset) {
+      const w = (d.bx * d.bx) / (d.sey * d.sey);
+      const r = d.by / d.bx;
+      const qj = w * (r - beta) * (r - beta);
+      Q += qj;
+      qContribs.push({ snp: d.snp, qj: qj });
+    }
+    const n = subset.length;
+    const p = chiSqPValue(Q, n - 1);
+    return { beta, se, Q, p, n, qContribs };
+  }
+
+  // Initial test
+  const initial = computeIVWandQ(data);
+  const steps = [{ step: 0, removed: '-', qContrib: '-', remainingK: k, Q: initial.Q, p: initial.p }];
+
+  // Sequential removal
+  let currentData = data.slice();
+  let currentResult = initial;
+  let stepNum = 0;
+
+  while (currentResult.p < 0.05 && currentData.length > 3) {
+    // Find SNP with largest Q contribution
+    let maxQj = -Infinity, maxIdx = -1, maxSNP = '';
+    for (let i = 0; i < currentResult.qContribs.length; i++) {
+      if (currentResult.qContribs[i].qj > maxQj) {
+        maxQj = currentResult.qContribs[i].qj;
+        maxIdx = i;
+        maxSNP = currentResult.qContribs[i].snp;
+      }
+    }
+    // Remove that SNP
+    currentData = currentData.filter((_, i) => i !== maxIdx);
+    currentResult = computeIVWandQ(currentData);
+    stepNum++;
+    steps.push({
+      step: stepNum,
+      removed: maxSNP,
+      qContrib: maxQj.toFixed(3),
+      remainingK: currentData.length,
+      Q: currentResult.Q,
+      p: currentResult.p
+    });
+  }
+
+  const finalIVW = currentResult;
+  const nRemoved = k - currentData.length;
+
+  return {
+    method: 'Sargan',
+    initialQ: initial.Q,
+    initialP: initial.p,
+    finalQ: finalIVW.Q,
+    finalP: finalIVW.p,
+    finalBeta: finalIVW.beta,
+    finalSE: finalIVW.se,
+    finalCI: [finalIVW.beta - zc * finalIVW.se, finalIVW.beta + zc * finalIVW.se],
+    finalK: currentData.length,
+    nRemoved: nRemoved,
+    steps: steps,
+    validSNPs: currentData.map(d => d.snp),
+    passes: finalIVW.p >= 0.05,
+    k: k
+  };
+}
+
+function mrPEN(data) {
+  // Pleiotropy-robust penalized IVW (MR-PEN)
+  // Adaptive Lasso weights: w_pen_j = 1/|residual_j|^gamma (gamma=1)
+  // Iteratively re-weight IVW to downweight pleiotropic instruments
+  const k = data.length;
+  const alpha = parseFloat(document.getElementById('alpha').value) || 0.05;
+  const zc = normalQuantile(1 - alpha / 2);
+
+  const ratios = data.map(d => d.by / d.bx);
+  const ivwWeights = data.map(d => (d.bx * d.bx) / (d.sey * d.sey));
+
+  // Initialize with standard IVW
+  let totalW = ivwWeights.reduce((a, b) => a + b, 0);
+  let beta = ivwWeights.reduce((s, w, i) => s + w * ratios[i], 0) / totalW;
+
+  const penWeights = new Array(k).fill(1);
+  const penGamma = 1; // Adaptive Lasso exponent
+
+  // Iterate
+  for (let iter = 0; iter < 100; iter++) {
+    const prevBeta = beta;
+
+    // Compute residuals and adaptive penalties
+    for (let i = 0; i < k; i++) {
+      const resid = Math.abs(ratios[i] - beta);
+      // Adaptive Lasso weight: 1/|resid|^gamma, capped for stability
+      penWeights[i] = resid > 1e-8 ? 1 / Math.pow(resid, penGamma) : 1e8;
+    }
+
+    // Normalize penalty weights to [0, 1] range relative to max
+    const maxPW = Math.max(...penWeights);
+    for (let i = 0; i < k; i++) {
+      penWeights[i] = penWeights[i] / maxPW;
+    }
+
+    // Re-estimate beta with combined weights
+    let newNum = 0, newDen = 0;
+    for (let i = 0; i < k; i++) {
+      const combinedW = ivwWeights[i] * penWeights[i];
+      newNum += combinedW * ratios[i];
+      newDen += combinedW;
+    }
+    beta = newDen > 0 ? newNum / newDen : prevBeta;
+
+    if (Math.abs(beta - prevBeta) < 1e-10) break;
+  }
+
+  // SE with combined weights
+  let sumCombW = 0;
+  for (let i = 0; i < k; i++) {
+    sumCombW += ivwWeights[i] * penWeights[i];
+  }
+  const se = sumCombW > 0 ? 1 / Math.sqrt(sumCombW) : Infinity;
+  const z = se < Infinity ? beta / se : 0;
+  const p = 2 * (1 - normalCDF(Math.abs(z)));
+
+  // Count heavily penalized (weight < 0.5)
+  const nPenalized = penWeights.filter(w => w < 0.5).length;
+
+  // Standard IVW for comparison
+  const totalW0 = ivwWeights.reduce((a, b) => a + b, 0);
+  const beta0 = ivwWeights.reduce((s, w, i) => s + w * ratios[i], 0) / totalW0;
+  const se0 = 1 / Math.sqrt(totalW0);
+
+  return {
+    method: 'MR-PEN',
+    beta: beta, se: se,
+    ci: [beta - zc * se, beta + zc * se], p: p,
+    penWeights: penWeights,
+    nPenalized: nPenalized,
+    standard: { beta: beta0, se: se0 },
+    diff: Math.abs(beta - beta0),
+    diffPct: beta0 !== 0 ? Math.abs((beta - beta0) / beta0) * 100 : 0,
+    k: k
+  };
+}
+
+// ═══════════════════════════════════════════════════════
 // SEEDED PRNG (xoshiro128**)
 // ═══════════════════════════════════════════════════════
 
@@ -1755,9 +2415,18 @@ function runAnalysis() {
   const condFRes = conditionalFStat(data, ivwRes);
   const huberRes = outlierRobustIVW(data);
 
+  // New v3.1 methods
+  const lassoRes = mrLasso(data);
+  const arRes = andersonRubin(data);
+  const fiellerRes = fiellerCI(data);
+  const modelAvgRes = heterogeneityModelAveraging(data, ivwRes, eggerRes, wmedRes, modeRes);
+  const sarganRes = sarganTest(data);
+  const mrpenRes = mrPEN(data);
+
   lastResults = { ivw: ivwRes, egger: eggerRes, wmed: wmedRes, smed: smedRes, presso: pressoRes, loo: looRes, fStats, data,
     raps: rapsRes, mode: modeRes, i2gx: i2gxRes, steiger: steigerRes, contMix: contMixRes, predInt: predIntRes,
-    radial: radialRes, clust: clustRes, qDecomp: qDecompRes, reverse: reverseRes, condF: condFRes, huber: huberRes };
+    radial: radialRes, clust: clustRes, qDecomp: qDecompRes, reverse: reverseRes, condF: condFRes, huber: huberRes,
+    lasso: lassoRes, ar: arRes, fieller: fiellerRes, modelAvg: modelAvgRes, sargan: sarganRes, mrpen: mrpenRes };
 
   renderResults();
   renderScatter();
@@ -1767,6 +2436,7 @@ function runAnalysis() {
   renderRadial();
   renderClusters();
   renderAdvanced();
+  renderWeakIV();
   showTab('results');
 }
 
@@ -1806,6 +2476,9 @@ function renderResults() {
   if (r.contMix) methods.push(r.contMix);
   if (r.radial) methods.push({ method: 'Radial IVW', beta: r.radial.ivw.beta, se: r.radial.ivw.se, ci: r.radial.ivw.ci, p: r.radial.ivw.p });
   if (r.huber) methods.push(r.huber);
+  if (r.lasso) methods.push(r.lasso);
+  if (r.mrpen) methods.push(r.mrpen);
+  if (r.modelAvg) methods.push(r.modelAvg);
 
   const tbody = document.querySelector('#methodTable tbody');
   tbody.innerHTML = methods.map(m => {
@@ -1834,7 +2507,11 @@ function renderResults() {
     { test: 'Radial Q (modified Cochran)', stat: r.radial ? `Q=${r.radial.ivw.Q.toFixed(2)}, ${r.radial.nOutliers} outlier(s)` : 'N/A', p: r.radial ? r.radial.ivw.Qp : '-', interp: r.radial ? (r.radial.ivw.Qp < 0.05 ? 'Significant heterogeneity in radial space' : 'No significant radial heterogeneity') : 'N/A' },
     { test: 'Q decomposition (balanced)', stat: r.qDecomp ? `Q_bal=${r.qDecomp.Q_balanced.toFixed(2)}, Q_unbal=${r.qDecomp.Q_unbalanced.toFixed(2)}` : 'N/A', p: r.qDecomp ? r.qDecomp.p_unbalanced : '-', interp: r.qDecomp ? r.qDecomp.recommendation : 'N/A' },
     { test: 'Reverse MR (bidirectional)', stat: r.reverse ? `Forward \u03B2=${r.reverse.forward.beta.toFixed(4)}, Reverse \u03B2=${r.reverse.reverse.beta.toFixed(4)}` : 'N/A', p: r.reverse ? r.reverse.reverse.p : '-', interp: r.reverse ? r.reverse.interpretation : 'N/A' },
-    { test: 'Conditional F-statistic', stat: r.condF ? `F_cond=${r.condF.F_conditional.toFixed(1)} (R\u00B2_pleio=${(r.condF.R2_pleiotropy*100).toFixed(1)}%)` : 'N/A', p: '-', interp: r.condF ? r.condF.interpretation : 'N/A' }
+    { test: 'Conditional F-statistic', stat: r.condF ? `F_cond=${r.condF.F_conditional.toFixed(1)} (R\u00B2_pleio=${(r.condF.R2_pleiotropy*100).toFixed(1)}%)` : 'N/A', p: '-', interp: r.condF ? r.condF.interpretation : 'N/A' },
+    { test: 'MR-Lasso (Rees 2019)', stat: r.lasso ? `${r.lasso.nValid}/${r.lasso.k} valid (\u03BB=${r.lasso.lambda.toFixed(4)})` : 'N/A', p: r.lasso ? (r.lasso.p < 0.001 ? r.lasso.p.toExponential(2) : r.lasso.p.toFixed(4)) : '-', interp: r.lasso ? (r.lasso.nInvalid > 0 ? r.lasso.nInvalid + ' SNP(s) with detectable pleiotropy' : 'All instruments appear valid') : 'N/A' },
+    { test: 'Sargan overidentification', stat: r.sargan ? `Q=${r.sargan.initialQ.toFixed(2)} (initial), ${r.sargan.finalK}/${r.sargan.k} valid` : 'N/A', p: r.sargan ? (r.sargan.initialP < 0.001 ? r.sargan.initialP.toExponential(2) : r.sargan.initialP.toFixed(4)) : '-', interp: r.sargan ? (r.sargan.passes ? 'Valid instrument subset identified (Sargan P > 0.05)' : 'Overidentification rejected even after sequential removal') : 'N/A' },
+    { test: 'Anderson-Rubin CI', stat: r.ar ? (r.ar.arCIBounded ? `${formatEst(r.ar.arCI[0], isLog)} to ${formatEst(r.ar.arCI[1], isLog)}` : 'Unbounded') : 'N/A', p: r.ar ? (r.ar.arP < 0.001 ? r.ar.arP.toExponential(2) : r.ar.arP.toFixed(4)) : '-', interp: r.ar ? r.ar.interp : 'N/A' },
+    { test: 'Fieller CI', stat: r.fieller ? (r.fieller.ciType === 'bounded' ? `${formatEst(r.fieller.ci[0], isLog)} to ${formatEst(r.fieller.ci[1], isLog)}` : r.fieller.ciType) : 'N/A', p: '-', interp: r.fieller ? r.fieller.interp : 'N/A' }
   ];
   document.querySelector('#diagTable tbody').innerHTML = diags.map(d => {
     const cls = typeof d.p === 'number' ? (d.p < 0.05 ? 'badge-red' : 'badge-green') : '';
@@ -1859,6 +2536,23 @@ function renderResults() {
       html += '<p>No individual outliers identified after Bonferroni correction.</p>';
     }
     pressoDiv.innerHTML = html;
+  }
+
+  // Model averaging rendering
+  if (r.modelAvg) {
+    const ma = r.modelAvg;
+    const maBadge = ma.p < 0.05 ? '<span class="badge badge-green">Significant</span>' : '<span class="badge badge-amber">Not significant</span>';
+    document.getElementById('modelAvgStats').innerHTML = `
+      <div class="stat-box"><div class="value">${formatEst(ma.beta, isLog)}</div><div class="label">Model-Averaged Estimate ${maBadge}</div></div>
+      <div class="stat-box"><div class="value">${ma.se.toFixed(4)}</div><div class="label">SE (delta method)</div></div>
+      <div class="stat-box"><div class="value">${formatEst(ma.ci[0], isLog)} to ${formatEst(ma.ci[1], isLog)}</div><div class="label">95% CI</div></div>
+      <div class="stat-box"><div class="value">${ma.p < 0.001 ? ma.p.toExponential(2) : ma.p.toFixed(4)}</div><div class="label">P-value</div></div>
+    `;
+    document.querySelector('#modelAvgTable tbody').innerHTML = ma.components.map(c => {
+      const wPct = (c.weight * 100).toFixed(1);
+      const barWidth = Math.max(2, c.weight * 100);
+      return '<tr><td><strong>' + c.name + '</strong></td><td>' + formatEst(c.beta, isLog) + '</td><td>' + c.Q.toFixed(2) + '</td><td><div style="display:flex;align-items:center;gap:8px"><div style="width:' + barWidth + 'px;height:8px;background:var(--accent);border-radius:4px"></div>' + wPct + '%</td></tr>';
+    }).join('');
   }
 
   // Wald ratios table
@@ -2363,6 +3057,62 @@ function renderAdvanced() {
       return '<tr><td><strong>' + hr.method + '</strong></td><td>' + formatEst(hr.beta, isLog) + '</td><td>' + hr.se.toFixed(4) + '</td><td>' + formatEst(hr.ci[0], isLog) + ' to ' + formatEst(hr.ci[1], isLog) + '</td><td>' + (hr.p < 0.001 ? hr.p.toExponential(2) : hr.p.toFixed(4)) + '</td><td>' + (sig ? '<span class="badge badge-green">' : '<span class="badge badge-amber">') + hr.interp + '</span></td></tr>';
     }).join('');
   }
+
+  // --- MR-Lasso rendering ---
+  if (r.lasso) {
+    const ls = r.lasso;
+    const validBadge = ls.nInvalid > 0 ? '<span class="badge badge-amber">' + ls.nInvalid + ' pleiotropic</span>' : '<span class="badge badge-green">All valid</span>';
+    document.getElementById('lassoStats').innerHTML = `
+      <div class="stat-box"><div class="value">${formatEst(ls.beta, isLog)}</div><div class="label">MR-Lasso Estimate ${isLog ? '(OR)' : ''}</div></div>
+      <div class="stat-box"><div class="value">${ls.nValid}/${ls.k}</div><div class="label">Valid instruments ${validBadge}</div></div>
+      <div class="stat-box"><div class="value">${ls.lambda.toFixed(4)}</div><div class="label">\u03BB (BIC-selected)</div></div>
+      <div class="stat-box"><div class="value">${ls.bic.toFixed(1)}</div><div class="label">BIC</div></div>
+    `;
+    document.querySelector('#lassoTable tbody').innerHTML = r.data.map((d, i) => {
+      const ratio = d.by / d.bx;
+      const g = ls.gamma[i];
+      const isValid = Math.abs(g) < 1e-12;
+      const cls = isValid ? 'color:var(--green)' : 'color:var(--red);font-weight:bold';
+      return '<tr style="' + cls + '"><td>' + d.snp + '</td><td>' + formatEst(ratio, isLog) + '</td><td>' + g.toFixed(6) + '</td><td>' + (isValid ? '<span class="badge badge-green">Valid (\u03B3=0)</span>' : '<span class="badge badge-red">Pleiotropic</span>') + '</td></tr>';
+    }).join('');
+  }
+
+  // --- Sargan rendering ---
+  if (r.sargan) {
+    const sg = r.sargan;
+    const passBadge = sg.passes ? '<span class="badge badge-green">Passes</span>' : '<span class="badge badge-red">Fails</span>';
+    document.getElementById('sarganStats').innerHTML = `
+      <div class="stat-box"><div class="value">${sg.initialQ.toFixed(2)}</div><div class="label">Initial Q (k=${sg.k})</div></div>
+      <div class="stat-box"><div class="value">${sg.initialP < 0.001 ? sg.initialP.toExponential(2) : sg.initialP.toFixed(4)}</div><div class="label">Initial Sargan P</div></div>
+      <div class="stat-box"><div class="value">${sg.finalK}/${sg.k}</div><div class="label">Valid subset ${passBadge}</div></div>
+      <div class="stat-box"><div class="value">${sg.nRemoved}</div><div class="label">SNPs removed</div></div>
+      <div class="stat-box"><div class="value">${formatEst(sg.finalBeta, isLog)}</div><div class="label">IVW on valid subset</div></div>
+    `;
+    document.querySelector('#sarganTable tbody').innerHTML = sg.steps.map(st => {
+      const cls = st.p >= 0.05 ? 'badge-green' : 'badge-red';
+      return '<tr><td>' + st.step + '</td><td>' + st.removed + '</td><td>' + st.qContrib + '</td><td>' + st.remainingK + '</td><td>' + st.Q.toFixed(2) + '</td><td><span class="badge ' + cls + '">' + (typeof st.p === 'number' ? (st.p < 0.001 ? st.p.toExponential(2) : st.p.toFixed(4)) : st.p) + '</span></td></tr>';
+    }).join('');
+  }
+
+  // --- MR-PEN rendering ---
+  if (r.mrpen) {
+    const mp = r.mrpen;
+    const diffBadge = mp.diffPct > 10 ? '<span class="badge badge-amber">Notable</span>' : '<span class="badge badge-green">Minimal</span>';
+    document.getElementById('mrpenStats').innerHTML = `
+      <div class="stat-box"><div class="value">${formatEst(mp.beta, isLog)}</div><div class="label">MR-PEN Estimate ${isLog ? '(OR)' : ''}</div></div>
+      <div class="stat-box"><div class="value">${formatEst(mp.standard.beta, isLog)}</div><div class="label">Standard IVW ${isLog ? '(OR)' : ''}</div></div>
+      <div class="stat-box"><div class="value">${mp.nPenalized}</div><div class="label">Heavily penalized SNPs</div></div>
+      <div class="stat-box"><div class="value">${mp.diffPct.toFixed(1)}%</div><div class="label">Change from IVW ${diffBadge}</div></div>
+    `;
+    const mpRows = [
+      { method: 'Standard IVW', beta: mp.standard.beta, se: mp.standard.se, ci: [mp.standard.beta - normalQuantile(0.975) * mp.standard.se, mp.standard.beta + normalQuantile(0.975) * mp.standard.se], p: 2 * (1 - normalCDF(Math.abs(mp.standard.beta / mp.standard.se))), interp: 'Reference (no penalization)' },
+      { method: 'MR-PEN (adaptive Lasso)', beta: mp.beta, se: mp.se, ci: mp.ci, p: mp.p, interp: mp.nPenalized > 0 ? mp.nPenalized + ' SNP(s) heavily penalized' : 'All SNPs retained with similar weights' }
+    ];
+    document.querySelector('#mrpenTable tbody').innerHTML = mpRows.map(row => {
+      const sig = row.p < 0.05;
+      return '<tr><td><strong>' + row.method + '</strong></td><td>' + formatEst(row.beta, isLog) + '</td><td>' + row.se.toFixed(4) + '</td><td>' + formatEst(row.ci[0], isLog) + ' to ' + formatEst(row.ci[1], isLog) + '</td><td>' + (row.p < 0.001 ? row.p.toExponential(2) : row.p.toFixed(4)) + '</td><td>' + (sig ? '<span class="badge badge-green">' : '<span class="badge badge-amber">') + row.interp + '</span></td></tr>';
+    }).join('');
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2646,6 +3396,100 @@ function renderClusters() {
 }
 
 // ═══════════════════════════════════════════════════════
+// WEAK INSTRUMENTS PANEL RENDERING
+// ═══════════════════════════════════════════════════════
+
+function renderWeakIV() {
+  const r = lastResults;
+  if (!r || !r.ar || !r.fieller) return;
+  const scale = document.getElementById('effectScale').value;
+  const isLog = scale === 'log' || scale === 'logRR';
+
+  const ar = r.ar;
+  const fi = r.fieller;
+  const meanF = r.fStats.mean;
+
+  // Summary stats
+  const fBadge = meanF < 10 ? '<span class="badge badge-red">WEAK</span>' : '<span class="badge badge-green">STRONG</span>';
+  const arBounded = ar.arCIBounded ? '<span class="badge badge-green">Bounded</span>' : '<span class="badge badge-red">Unbounded</span>';
+  const fiBounded = fi.ciType === 'bounded' ? '<span class="badge badge-green">Bounded</span>' : '<span class="badge badge-red">' + fi.ciType.charAt(0).toUpperCase() + fi.ciType.slice(1) + '</span>';
+  document.getElementById('weakivSummaryStats').innerHTML = `
+    <div class="stat-box"><div class="value">${meanF.toFixed(1)}</div><div class="label">Mean F-statistic ${fBadge}</div></div>
+    <div class="stat-box"><div class="value">${ar.arCIBounded ? formatEst(ar.arCI[0], isLog) + ' to ' + formatEst(ar.arCI[1], isLog) : 'Unbounded'}</div><div class="label">Anderson-Rubin CI ${arBounded}</div></div>
+    <div class="stat-box"><div class="value">${fi.ciType === 'bounded' ? formatEst(fi.ci[0], isLog) + ' to ' + formatEst(fi.ci[1], isLog) : fi.ciType}</div><div class="label">Fieller CI ${fiBounded}</div></div>
+    <div class="stat-box"><div class="value">${fi.nUnbounded}</div><div class="label">SNPs with unbounded Fieller CI</div></div>
+  `;
+
+  // Anderson-Rubin table
+  const arRows = [
+    { method: 'Standard IVW', est: formatEst(ar.beta, isLog), ci: formatEst(ar.ivwCI[0], isLog) + ' to ' + formatEst(ar.ivwCI[1], isLog), p: r.ivw.p < 0.001 ? r.ivw.p.toExponential(2) : r.ivw.p.toFixed(4), interp: 'Assumes strong instruments (F > 10)' },
+    { method: 'Anderson-Rubin', est: formatEst(ar.beta, isLog), ci: ar.arCIBounded ? formatEst(ar.arCI[0], isLog) + ' to ' + formatEst(ar.arCI[1], isLog) : 'Unbounded', p: ar.arP < 0.001 ? ar.arP.toExponential(2) : ar.arP.toFixed(4), interp: ar.interp }
+  ];
+  document.querySelector('#arTable tbody').innerHTML = arRows.map(row => {
+    return '<tr><td><strong>' + row.method + '</strong></td><td>' + row.est + '</td><td>' + row.ci + '</td><td>' + row.p + '</td><td>' + row.interp + '</td></tr>';
+  }).join('');
+
+  // Anderson-Rubin stats
+  document.getElementById('arStats').innerHTML = `
+    <div class="stat-box"><div class="value">${ar.arStat.toFixed(2)}</div><div class="label">AR statistic</div></div>
+    <div class="stat-box"><div class="value">${ar.critVal.toFixed(2)}</div><div class="label">\u03C7\u00B2 critical (k=${ar.k}, \u03B1=${parseFloat(document.getElementById('alpha').value) || 0.05})</div></div>
+    <div class="stat-box"><div class="value">${ar.arP < 0.001 ? ar.arP.toExponential(2) : ar.arP.toFixed(4)}</div><div class="label">AR P-value</div></div>
+  `;
+
+  // Fieller table
+  const fiRows = [];
+  fiRows.push({ method: 'IVW-Fieller (aggregated)', lo: fi.ciType === 'bounded' ? formatEst(fi.ci[0], isLog) : '-', hi: fi.ciType === 'bounded' ? formatEst(fi.ci[1], isLog) : '-', type: fi.ciType, interp: fi.interp });
+  fi.perSNP.forEach(s => {
+    fiRows.push({ method: s.snp, lo: s.type === 'bounded' ? formatEst(s.lo, isLog) : '-', hi: s.type === 'bounded' ? formatEst(s.hi, isLog) : '-', type: s.type, interp: s.type === 'unbounded' ? 'Weak instrument for this SNP' : s.type === 'empty' ? 'Model misspecification' : '' });
+  });
+  document.querySelector('#fiellerTable tbody').innerHTML = fiRows.map(row => {
+    const cls = row.type === 'bounded' ? 'badge-green' : 'badge-red';
+    return '<tr><td><strong>' + row.method + '</strong></td><td>' + row.lo + '</td><td>' + row.hi + '</td><td><span class="badge ' + cls + '">' + row.type + '</span></td><td>' + row.interp + '</td></tr>';
+  }).join('');
+
+  // Fieller stats
+  document.getElementById('fiellerStats').innerHTML = `
+    <div class="stat-box"><div class="value">${fi.A.toFixed(2)}</div><div class="label">A (quadratic coeff)</div></div>
+    <div class="stat-box"><div class="value">${fi.discriminant.toFixed(2)}</div><div class="label">Discriminant</div></div>
+    <div class="stat-box"><div class="value">${fi.nUnbounded}/${fi.k}</div><div class="label">Weak SNPs (unbounded Fieller)</div></div>
+  `;
+
+  // Comparison table
+  const compareRows = [];
+  // Standard IVW
+  const ivwWidth = r.ivw.ci[1] - r.ivw.ci[0];
+  const ivwCovers = r.ivw.ci[0] <= 0 && r.ivw.ci[1] >= 0;
+  compareRows.push({ method: 'Standard IVW', lo: formatEst(r.ivw.ci[0], isLog), hi: formatEst(r.ivw.ci[1], isLog), width: isLog ? (Math.exp(r.ivw.ci[1]) - Math.exp(r.ivw.ci[0])).toFixed(3) : ivwWidth.toFixed(4), covers: ivwCovers });
+  // IVW RE
+  const reWidth = r.ivw.ci_re[1] - r.ivw.ci_re[0];
+  const reCovers = r.ivw.ci_re[0] <= 0 && r.ivw.ci_re[1] >= 0;
+  compareRows.push({ method: 'IVW (random)', lo: formatEst(r.ivw.ci_re[0], isLog), hi: formatEst(r.ivw.ci_re[1], isLog), width: isLog ? (Math.exp(r.ivw.ci_re[1]) - Math.exp(r.ivw.ci_re[0])).toFixed(3) : reWidth.toFixed(4), covers: reCovers });
+  // AR
+  if (ar.arCIBounded) {
+    const arWidth = ar.arCI[1] - ar.arCI[0];
+    compareRows.push({ method: 'Anderson-Rubin', lo: formatEst(ar.arCI[0], isLog), hi: formatEst(ar.arCI[1], isLog), width: isLog ? (Math.exp(ar.arCI[1]) - Math.exp(ar.arCI[0])).toFixed(3) : arWidth.toFixed(4), covers: ar.coversNull });
+  } else {
+    compareRows.push({ method: 'Anderson-Rubin', lo: '-\u221E', hi: '+\u221E', width: '\u221E', covers: true });
+  }
+  // Fieller
+  if (fi.ciType === 'bounded') {
+    const fiWidth = fi.ci[1] - fi.ci[0];
+    compareRows.push({ method: 'Fieller', lo: formatEst(fi.ci[0], isLog), hi: formatEst(fi.ci[1], isLog), width: isLog ? (Math.exp(fi.ci[1]) - Math.exp(fi.ci[0])).toFixed(3) : fiWidth.toFixed(4), covers: fi.coversNull });
+  } else {
+    compareRows.push({ method: 'Fieller', lo: fi.ciType === 'unbounded' ? '-\u221E' : 'empty', hi: fi.ciType === 'unbounded' ? '+\u221E' : 'empty', width: fi.ciType === 'unbounded' ? '\u221E' : '0', covers: fi.coversNull });
+  }
+  // Prediction interval
+  if (r.predInt) {
+    const piWidth = r.predInt.pi[1] - r.predInt.pi[0];
+    compareRows.push({ method: 'Prediction Interval', lo: formatEst(r.predInt.pi[0], isLog), hi: formatEst(r.predInt.pi[1], isLog), width: isLog ? (Math.exp(r.predInt.pi[1]) - Math.exp(r.predInt.pi[0])).toFixed(3) : piWidth.toFixed(4), covers: r.predInt.coversNull });
+  }
+  document.querySelector('#weakivCompareTable tbody').innerHTML = compareRows.map(row => {
+    const cls = row.covers ? 'badge-amber' : 'badge-green';
+    return '<tr><td><strong>' + row.method + '</strong></td><td>' + row.lo + '</td><td>' + row.hi + '</td><td>' + row.width + '</td><td><span class="badge ' + cls + '">' + (row.covers ? 'Yes' : 'No') + '</span></td></tr>';
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
 // EXAMPLE DATASETS
 // ═══════════════════════════════════════════════════════
 
@@ -2784,7 +3628,10 @@ function exportCSV() {
     { n: 'Radial_IVW', beta: r.radial.ivw.beta, se: r.radial.ivw.se, ci: r.radial.ivw.ci, p: r.radial.ivw.p },
     { n: 'Radial_MR_Egger', beta: r.radial.egger.beta, se: r.radial.egger.se, ci: r.radial.egger.ci, p: r.radial.egger.p },
     { n: 'Outlier_Robust_IVW', ...r.huber },
-    { n: 'Reverse_MR', beta: r.reverse.reverse.beta, se: r.reverse.reverse.se, ci: r.reverse.reverse.ci, p: r.reverse.reverse.p }
+    { n: 'Reverse_MR', beta: r.reverse.reverse.beta, se: r.reverse.reverse.se, ci: r.reverse.reverse.ci, p: r.reverse.reverse.p },
+    { n: 'MR_Lasso', ...r.lasso },
+    { n: 'MR_PEN', ...r.mrpen },
+    { n: 'Model_Averaged', ...r.modelAvg }
   ];
   for (const m of methods) {
     csv += `${m.n},${m.beta},${m.se},${m.ci[0]},${m.ci[1]},${m.p}\n`;
@@ -2805,6 +3652,28 @@ function exportCSV() {
   if (r.clust) {
     csv += `\nMR_Clust\nOptimal_K,${r.clust.bestK}\nBIC,${r.clust.bic}\nN_junk,${r.clust.nJunk}\n`;
     r.clust.clusters.forEach(c => { csv += `Cluster_${c.cluster}_beta,${c.beta}\nCluster_${c.cluster}_SE,${c.se}\nCluster_${c.cluster}_N,${c.n}\n`; });
+  }
+  if (r.lasso) {
+    csv += `\nMR_Lasso\nLasso_beta,${r.lasso.beta}\nLasso_SE,${r.lasso.se}\nLasso_P,${r.lasso.p}\nLasso_lambda,${r.lasso.lambda}\nLasso_BIC,${r.lasso.bic}\nLasso_valid,${r.lasso.nValid}\nLasso_invalid,${r.lasso.nInvalid}\n`;
+  }
+  if (r.ar) {
+    csv += `\nAnderson_Rubin\nAR_statistic,${r.ar.arStat}\nAR_P,${r.ar.arP}\nAR_CI_bounded,${r.ar.arCIBounded}\n`;
+    if (r.ar.arCIBounded) csv += `AR_CI_lower,${r.ar.arCI[0]}\nAR_CI_upper,${r.ar.arCI[1]}\n`;
+  }
+  if (r.fieller) {
+    csv += `\nFieller\nFieller_type,${r.fieller.ciType}\n`;
+    if (r.fieller.ciType === 'bounded') csv += `Fieller_CI_lower,${r.fieller.ci[0]}\nFieller_CI_upper,${r.fieller.ci[1]}\n`;
+    csv += `Fieller_n_unbounded_SNPs,${r.fieller.nUnbounded}\n`;
+  }
+  if (r.modelAvg) {
+    csv += `\nModel_Averaging\nMA_beta,${r.modelAvg.beta}\nMA_SE,${r.modelAvg.se}\nMA_P,${r.modelAvg.p}\n`;
+    r.modelAvg.components.forEach(c => { csv += `MA_weight_${c.name},${c.weight}\nMA_Q_${c.name},${c.Q}\n`; });
+  }
+  if (r.sargan) {
+    csv += `\nSargan_Test\nSargan_initial_Q,${r.sargan.initialQ}\nSargan_initial_P,${r.sargan.initialP}\nSargan_final_Q,${r.sargan.finalQ}\nSargan_final_P,${r.sargan.finalP}\nSargan_valid_k,${r.sargan.finalK}\nSargan_removed,${r.sargan.nRemoved}\nSargan_IVW_beta,${r.sargan.finalBeta}\n`;
+  }
+  if (r.mrpen) {
+    csv += `\nMR_PEN\nPEN_beta,${r.mrpen.beta}\nPEN_SE,${r.mrpen.se}\nPEN_P,${r.mrpen.p}\nPEN_n_penalized,${r.mrpen.nPenalized}\nPEN_change_pct,${r.mrpen.diffPct}\n`;
   }
   downloadText(csv, 'mr_results.csv');
 }
@@ -2860,6 +3729,44 @@ function exportReport() {
     txt += `\nMR-Clust\n${'─'.repeat(30)}\n`;
     txt += `Optimal clusters: ${r.clust.bestK} (BIC=${r.clust.bic.toFixed(1)}), junk instruments: ${r.clust.nJunk}\n`;
     r.clust.clusters.forEach(c => { txt += `  Cluster ${c.cluster}: \u03B2=${c.beta.toFixed(4)}, SE=${c.se.toFixed(4)}, n=${c.n}\n`; });
+  }
+  if (r.lasso) {
+    txt += `\nMR-Lasso (Rees et al. 2019)\n${'─'.repeat(30)}\n`;
+    txt += `\u03B2=${r.lasso.beta.toFixed(4)}, SE=${r.lasso.se.toFixed(4)}, P=${r.lasso.p.toExponential(3)}\n`;
+    txt += `\u03BB=${r.lasso.lambda.toFixed(4)} (BIC=${r.lasso.bic.toFixed(1)})\n`;
+    txt += `Valid instruments: ${r.lasso.nValid}/${r.lasso.k}, pleiotropic: ${r.lasso.nInvalid}\n`;
+  }
+  if (r.ar) {
+    txt += `\nAnderson-Rubin Test\n${'─'.repeat(30)}\n`;
+    txt += `AR statistic=${r.ar.arStat.toFixed(2)}, P=${r.ar.arP.toExponential(3)}\n`;
+    if (r.ar.arCIBounded) txt += `AR CI: ${r.ar.arCI[0].toFixed(4)} to ${r.ar.arCI[1].toFixed(4)}\n`;
+    else txt += `AR CI: Unbounded (instruments too weak)\n`;
+    txt += `IVW CI: ${r.ar.ivwCI[0].toFixed(4)} to ${r.ar.ivwCI[1].toFixed(4)}\n`;
+    txt += `${r.ar.interp}\n`;
+  }
+  if (r.fieller) {
+    txt += `\nFieller's Theorem CI\n${'─'.repeat(30)}\n`;
+    txt += `Type: ${r.fieller.ciType}\n`;
+    if (r.fieller.ciType === 'bounded') txt += `Fieller CI: ${r.fieller.ci[0].toFixed(4)} to ${r.fieller.ci[1].toFixed(4)}\n`;
+    txt += `SNPs with unbounded Fieller CI: ${r.fieller.nUnbounded}/${r.fieller.k}\n`;
+    txt += `${r.fieller.interp}\n`;
+  }
+  if (r.modelAvg) {
+    txt += `\nHeterogeneity-Penalized Model Averaging\n${'─'.repeat(30)}\n`;
+    txt += `\u03B2=${r.modelAvg.beta.toFixed(4)}, SE=${r.modelAvg.se.toFixed(4)}, P=${r.modelAvg.p.toExponential(3)}\n`;
+    r.modelAvg.components.forEach(c => { txt += `  ${c.name}: weight=${(c.weight*100).toFixed(1)}%, Q=${c.Q.toFixed(2)}\n`; });
+  }
+  if (r.sargan) {
+    txt += `\nSargan/Hansen Overidentification\n${'─'.repeat(30)}\n`;
+    txt += `Initial: Q=${r.sargan.initialQ.toFixed(2)}, P=${r.sargan.initialP.toFixed(4)}\n`;
+    txt += `Final: Q=${r.sargan.finalQ.toFixed(2)}, P=${r.sargan.finalP.toFixed(4)}, valid=${r.sargan.finalK}/${r.sargan.k}\n`;
+    txt += `IVW on valid subset: \u03B2=${r.sargan.finalBeta.toFixed(4)}, SE=${r.sargan.finalSE.toFixed(4)}\n`;
+    txt += `Removed: ${r.sargan.nRemoved} SNP(s)\n`;
+  }
+  if (r.mrpen) {
+    txt += `\nMR-PEN (Pleiotropy-Robust Penalized IVW)\n${'─'.repeat(30)}\n`;
+    txt += `\u03B2=${r.mrpen.beta.toFixed(4)}, SE=${r.mrpen.se.toFixed(4)}, P=${r.mrpen.p.toExponential(3)}\n`;
+    txt += `Heavily penalized: ${r.mrpen.nPenalized}, change from IVW: ${r.mrpen.diffPct.toFixed(1)}%\n`;
   }
   downloadText(txt, 'mr_report.txt');
 }
